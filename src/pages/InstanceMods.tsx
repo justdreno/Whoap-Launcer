@@ -12,14 +12,14 @@ interface InstanceModsProps {
     onBack: () => void;
 }
 
-interface InstalledMod {
+interface InstalledItem {
     name: string;
     path: string;
     size: number;
     isEnabled: boolean;
 }
 
-interface SearchMod {
+interface SearchItem {
     id: string;
     title: string;
     description: string;
@@ -27,30 +27,76 @@ interface SearchMod {
     downloads: number;
 }
 
+type ContentType = 'mods' | 'resourcepacks' | 'shaderpacks';
+type TabType = 'installed' | 'browse';
+
 export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline = true, onBack }) => {
-    const [activeTab, setActiveTab] = useState<'installed' | 'browse'>('installed');
-    const [installedMods, setInstalledMods] = useState<InstalledMod[]>([]);
-    const [searchMods, setSearchMods] = useState<SearchMod[]>([]);
+    const [contentType, setContentType] = useState<ContentType>('mods');
+    const [activeTab, setActiveTab] = useState<TabType>('installed');
+    const [installedItems, setInstalledItems] = useState<InstalledItem[]>([]);
+    const [searchItems, setSearchItems] = useState<SearchItem[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [installedSearchQuery, setInstalledSearchQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const [loading, setLoading] = useState(false);
     const [installingId, setInstallingId] = useState<string | null>(null);
     const [downloadProgress, setDownloadProgress] = useState(0);
-    const [versionSelectorMod, setVersionSelectorMod] = useState<SearchMod | null>(null);
+    const [versionSelectorMod, setVersionSelectorMod] = useState<SearchItem | null>(null);
 
-    const { showToast } = useToast();
+    const { showToast, removeToast } = useToast();
     const confirm = useConfirm();
-    // Instance metadata for filtering
     const [instanceMeta, setInstanceMeta] = useState<{ version: string, loader: string } | null>(null);
+    const [warningToastId, setWarningToastId] = useState<string | null>(null);
+
+    // Get content configuration
+    const getConfig = () => {
+        const configs = {
+            mods: {
+                title: 'Mods',
+                searchType: 'mod',
+                fileExtension: '.jar',
+                searchPlaceholder: 'Search for mods (e.g. JEI, Sodium)...',
+                addLabel: 'Add Mods',
+                ipcPrefix: 'mods',
+                fileFilter: { name: 'Mods', extensions: ['jar'] },
+                progressEvent: 'mods:install-progress'
+            },
+            resourcepacks: {
+                title: 'Resource Packs',
+                searchType: 'resourcepack',
+                fileExtension: '.zip',
+                searchPlaceholder: 'Search for resource packs...',
+                addLabel: 'Add Resource Packs',
+                ipcPrefix: 'resourcepacks',
+                fileFilter: { name: 'Resource Packs', extensions: ['zip'] },
+                progressEvent: 'resourcepacks:install-progress'
+            },
+            shaderpacks: {
+                title: 'Shader Packs',
+                searchType: 'shader',
+                fileExtension: '.zip',
+                searchPlaceholder: 'Search for shaderpacks...',
+                addLabel: 'Add Shaderpacks',
+                ipcPrefix: 'shaderpacks',
+                fileFilter: { name: 'Shader Packs', extensions: ['zip'] },
+                progressEvent: 'shaderpacks:install-progress'
+            }
+        };
+        return configs[contentType];
+    };
+
+    const config = getConfig();
 
     // Initial Load
     useEffect(() => {
         loadInstanceDetails();
+    }, [instanceId]);
+
+    useEffect(() => {
         if (activeTab === 'installed') {
-            loadInstalledMods();
+            loadInstalledItems();
         }
-    }, [activeTab, instanceId]);
+    }, [activeTab, contentType, instanceId]);
 
     // Debounce Search
     useEffect(() => {
@@ -62,10 +108,14 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
 
     // Trigger search on debounced query change
     useEffect(() => {
-        if (activeTab === 'browse' && debouncedQuery.trim()) {
-            handleSearch(debouncedQuery);
+        if (activeTab === 'browse') {
+            if (debouncedQuery.trim()) {
+                handleSearch(debouncedQuery);
+            } else {
+                loadFeaturedContent();
+            }
         }
-    }, [debouncedQuery, activeTab]);
+    }, [debouncedQuery, activeTab, contentType]);
 
     // Listen for download progress
     useEffect(() => {
@@ -74,11 +124,11 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
                 setDownloadProgress(data.progress);
             }
         };
-        window.ipcRenderer.on('mods:install-progress', handleProgress);
+        window.ipcRenderer.on(config.progressEvent, handleProgress);
         return () => {
-            window.ipcRenderer.off('mods:install-progress', handleProgress);
+            window.ipcRenderer.off(config.progressEvent, handleProgress);
         };
-    }, []);
+    }, [config.progressEvent]);
 
     const loadInstanceDetails = async () => {
         try {
@@ -93,7 +143,7 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
                     else if (v.includes('forge')) loader = 'forge';
                     else if (v.includes('quilt')) loader = 'quilt';
                     else if (v.includes('fabric')) loader = 'fabric';
-                    else loader = 'fabric'; // Default fallback
+                    else loader = 'fabric';
                 }
                 setInstanceMeta({ version: inst.version, loader: loader });
             }
@@ -102,64 +152,118 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
         }
     };
 
-    const loadInstalledMods = async () => {
+    const loadInstalledItems = async () => {
         setLoading(true);
         try {
-            const list = await window.ipcRenderer.invoke('mods:list', instanceId);
-            setInstalledMods(list);
+            const list = await window.ipcRenderer.invoke(`${config.ipcPrefix}:list`, instanceId);
+            setInstalledItems(list);
         } catch (e) {
             console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const loadFeaturedContent = async () => {
+        setLoading(true);
+        try {
+            // Curated list of "Famous" mods/packs
+            const featuredQueries = {
+                mods: 'jei sodium iris appleSkin clumps modmenu',
+                resourcepacks: 'patrix stay-true faithful bare-bones',
+                shaderpacks: 'complementary-reimagined bsl seus'
+            };
+            const query = featuredQueries[contentType];
+            const result = await window.ipcRenderer.invoke(`${config.ipcPrefix}:search-new`, query);
+            if (result.success) {
+                setSearchItems(result.results);
+            }
+        } catch (e) {
+            console.error("Failed to load featured content", e);
         } finally {
             setLoading(false);
         }
     };
 
     const handleSearch = async (query: string) => {
-        if (!query.trim()) return;
+        if (!query.trim()) {
+            loadFeaturedContent();
+            return;
+        }
         setLoading(true);
         try {
-            const result = await window.ipcRenderer.invoke('mods:search-new', query);
+            const result = await window.ipcRenderer.invoke(`${config.ipcPrefix}:search-new`, query);
             if (result.success) {
-                setSearchMods(result.results);
+                setSearchItems(result.results);
             } else {
-                setSearchMods([]);
+                setSearchItems([]);
             }
         } catch (e) {
             console.error(e);
-            setSearchMods([]);
+            setSearchItems([]);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleInstallClick = (mod: SearchMod) => {
+    const handleInstallClick = async (item: SearchItem) => {
         if (!instanceMeta) {
             showToast("Instance metadata not loaded.", "error");
             return;
         }
-        setVersionSelectorMod(mod);
+
+        // Don't set global loading here to avoid "refresh" feel (skeleton overlay)
+        setInstallingId(item.id);
+        try {
+            // Upgrade: Try smart fetch first
+            const result = await window.ipcRenderer.invoke('mods:get-smart-version', item.id, instanceMeta.version, instanceMeta.loader);
+
+            if (result.success && result.isValid && !result.warning) {
+                // Auto-select and install if no issues
+                await handleVersionInstall(result.version, result.file, item);
+            } else {
+                // Show warning if version detect failed or snapshot detected
+                if (result.warning) {
+                    const id = showToast(result.warning, "warning", { persistent: true });
+                    setWarningToastId(id);
+                }
+                // Fallback to manual selection
+                setVersionSelectorMod(item);
+            }
+        } catch (e) {
+            console.error("[InstanceMods] Smart install failed:", e);
+            setVersionSelectorMod(item); // Fallback
+        } finally {
+            setInstallingId(null);
+        }
     };
 
-    const handleVersionInstall = async (version: any, file: any) => {
-        const mod = versionSelectorMod;
-        if (!mod) return;
+    const handleVersionInstall = async (version: any, file: any, overrideItem?: SearchItem) => {
+        const item = overrideItem || versionSelectorMod;
+        if (!item) return;
 
+        // Confirmation (Already part of the existing logic, keeping it for safety)
         const shouldInstall = await confirm(
-            'Install Mod?',
-            `Do you want to install ${mod.title} (${file.filename})?`,
+            `Install ${config.title.slice(0, -1)}?`,
+            `Do you want to install ${item.title} (${file.filename})?`,
             { confirmLabel: 'Install', isDanger: false }
         );
 
         if (!shouldInstall) return;
 
+        if (warningToastId) {
+            removeToast(warningToastId);
+            setWarningToastId(null);
+        }
+
         setVersionSelectorMod(null);
-        setInstallingId(mod.id);
+        setInstallingId(item.id);
         setDownloadProgress(0);
 
         try {
-            await window.ipcRenderer.invoke('mods:install-new', instanceId, version.id, file.filename, file.url);
-            showToast(`Successfully installed ${mod.title}`, "success");
-            loadInstalledMods();
+            await window.ipcRenderer.invoke(`${config.ipcPrefix}:install-new`, instanceId, version.id, file.filename, file.url);
+            showToast(`Successfully installed ${item.title}`, "success");
+            loadInstalledItems();
         } catch (e) {
             console.error(e);
             showToast("Installation failed.", "error");
@@ -169,51 +273,55 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
         }
     };
 
-    const handleAddMods = async () => {
+    const handleAddItems = async () => {
         setLoading(true);
         try {
-            const result = await window.ipcRenderer.invoke('mods:add', instanceId);
+            const result = await window.ipcRenderer.invoke(`${config.ipcPrefix}:add`, instanceId);
             if (result.success) {
-                showToast("Mods added successfully.", "success");
-                loadInstalledMods();
+                showToast(`${config.title} added successfully.`, "success");
+                loadInstalledItems();
             } else if (result.error) {
-                showToast(`Failed to add mods: ${result.error}`, "error");
+                showToast(`Failed to add ${config.title.toLowerCase()}: ${result.error}`, "error");
             }
         } catch (e) {
             console.error(e);
-            showToast("Failed to add mods.", "error");
+            showToast(`Failed to add ${config.title.toLowerCase()}.`, "error");
         } finally {
             setLoading(false);
         }
     };
 
-    const handleToggle = async (mod: InstalledMod) => {
-        setInstalledMods(prev => prev.map(m =>
-            m.name === mod.name ? { ...m, isEnabled: !m.isEnabled } : m
+    const handleToggle = async (item: InstalledItem) => {
+        setInstalledItems(prev => prev.map(m =>
+            m.name === item.name ? { ...m, isEnabled: !m.isEnabled } : m
         ));
 
         try {
-            await window.ipcRenderer.invoke('mods:toggle', instanceId, mod.name);
+            await window.ipcRenderer.invoke(`${config.ipcPrefix}:toggle`, instanceId, item.name);
         } catch (e) {
-            console.error("Failed to toggle mod", e);
-            setInstalledMods(prev => prev.map(m =>
-                m.name === mod.name ? { ...m, isEnabled: !m.isEnabled } : m
+            console.error(`Failed to toggle ${contentType}`, e);
+            setInstalledItems(prev => prev.map(m =>
+                m.name === item.name ? { ...m, isEnabled: !m.isEnabled } : m
             ));
-            showToast("Failed to toggle mod", "error");
+            showToast(`Failed to toggle ${contentType}`, "error");
         }
     };
 
-    const handleDelete = async (mod: InstalledMod) => {
-        const shouldDelete = await confirm('Delete Mod?', `Delete ${mod.name}?`, { confirmLabel: 'Delete', isDanger: true });
+    const handleDelete = async (item: InstalledItem) => {
+        const shouldDelete = await confirm(
+            `Delete ${config.title.slice(0, -1)}?`,
+            `Delete ${item.name}?`,
+            { confirmLabel: 'Delete', isDanger: true }
+        );
         if (shouldDelete) {
-            setInstalledMods(prev => prev.filter(m => m.name !== mod.name));
+            setInstalledItems(prev => prev.filter(m => m.name !== item.name));
             try {
-                await window.ipcRenderer.invoke('mods:delete', instanceId, mod.name);
-                showToast(`Deleted ${mod.name}`, "success");
+                await window.ipcRenderer.invoke(`${config.ipcPrefix}:delete`, instanceId, item.name);
+                showToast(`Deleted ${item.name}`, "success");
             } catch (e) {
                 console.error(e);
-                showToast("Failed to delete mod", "error");
-                loadInstalledMods();
+                showToast(`Failed to delete ${contentType}`, "error");
+                loadInstalledItems();
             }
         }
     };
@@ -225,7 +333,7 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
                     <ChevronLeft size={24} />
                 </button>
                 <div className={styles.titleArea}>
-                    <h1 className={styles.pageTitle}>Manage Mods</h1>
+                    <h1 className={styles.pageTitle}>Manage Content</h1>
                     {instanceMeta && (
                         <div className={styles.instanceBadge}>
                             <span>Minecraft {instanceMeta.version}</span>
@@ -235,6 +343,41 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
                 </div>
             </div>
 
+            {/* Content Type Tabs */}
+            <div className={styles.contentTypeTabs}>
+                <button
+                    className={`${styles.contentTypeBtn} ${contentType === 'mods' ? styles.active : ''}`}
+                    onClick={() => {
+                        setContentType('mods');
+                        setSearchQuery('');
+                        setSearchItems([]);
+                    }}
+                >
+                    Mods
+                </button>
+                <button
+                    className={`${styles.contentTypeBtn} ${contentType === 'resourcepacks' ? styles.active : ''}`}
+                    onClick={() => {
+                        setContentType('resourcepacks');
+                        setSearchQuery('');
+                        setSearchItems([]);
+                    }}
+                >
+                    Resource Packs
+                </button>
+                <button
+                    className={`${styles.contentTypeBtn} ${contentType === 'shaderpacks' ? styles.active : ''}`}
+                    onClick={() => {
+                        setContentType('shaderpacks');
+                        setSearchQuery('');
+                        setSearchItems([]);
+                    }}
+                >
+                    Shaderpacks
+                </button>
+            </div>
+
+            {/* Browse/Installed Tabs */}
             <div className={styles.tabs}>
                 <button
                     className={`${styles.tabBtn} ${activeTab === 'installed' ? styles.active : ''}`}
@@ -254,7 +397,7 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
                 <div className={styles.searchArea}>
                     <input
                         className={styles.searchInput}
-                        placeholder="Search for mods (e.g. JEI, Sodium)..."
+                        placeholder={config.searchPlaceholder}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
@@ -265,13 +408,13 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
                 <div className={styles.searchArea}>
                     <input
                         className={styles.searchInput}
-                        placeholder="Filter installed mods..."
+                        placeholder={`Filter installed ${config.title.toLowerCase()}...`}
                         value={installedSearchQuery}
                         onChange={(e) => setInstalledSearchQuery(e.target.value)}
                     />
-                    <button className={styles.addModBtn} onClick={handleAddMods} title="Add Local Mods">
+                    <button className={styles.addModBtn} onClick={handleAddItems} title={config.addLabel}>
                         <Plus size={20} />
-                        <span>Add Mods</span>
+                        <span>{config.addLabel}</span>
                     </button>
                 </div>
             )}
@@ -285,25 +428,25 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
                     </div>
                 ) : activeTab === 'installed' ? (
                     <div className={styles.modList}>
-                        {installedMods.length === 0 && <div style={{ color: '#888', padding: 20 }}>No mods installed.</div>}
-                        {installedMods.filter(m => m.name.toLowerCase().includes(installedSearchQuery.toLowerCase())).map(mod => (
-                            <div key={mod.name} className={styles.modItem}>
+                        {installedItems.length === 0 && <div style={{ color: '#888', padding: 20 }}>No {config.title.toLowerCase()} installed.</div>}
+                        {installedItems.filter(m => m.name.toLowerCase().includes(installedSearchQuery.toLowerCase())).map(item => (
+                            <div key={item.name} className={styles.modItem}>
                                 <div style={{ flex: 1 }}>
-                                    <div className={styles.modName} style={{ opacity: mod.isEnabled ? 1 : 0.5 }}>
-                                        {mod.name.replace('.disabled', '')}
+                                    <div className={styles.modName} style={{ opacity: item.isEnabled ? 1 : 0.5 }}>
+                                        {item.name.replace('.disabled', '')}
                                     </div>
-                                    <div className={styles.modMeta}>{mod.isEnabled ? 'Enabled' : 'Disabled'} • {(mod.size / 1024).toFixed(1)} KB</div>
+                                    <div className={styles.modMeta}>{item.isEnabled ? 'Enabled' : 'Disabled'} • {(item.size / 1024).toFixed(1)} KB</div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 12 }}>
                                     <button
                                         className={styles.actionBtn}
-                                        onClick={() => handleToggle(mod)}
-                                        title={mod.isEnabled ? "Disable" : "Enable"}
-                                        style={{ color: mod.isEnabled ? '#4CAF50' : '#888', background: mod.isEnabled ? 'rgba(76, 175, 80, 0.1)' : undefined }}
+                                        onClick={() => handleToggle(item)}
+                                        title={item.isEnabled ? "Disable" : "Enable"}
+                                        style={{ color: item.isEnabled ? '#4CAF50' : '#888', background: item.isEnabled ? 'rgba(76, 175, 80, 0.1)' : undefined }}
                                     >
                                         <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'currentColor' }} />
                                     </button>
-                                    <button className={`${styles.actionBtn} ${styles.dangerBtn}`} onClick={() => handleDelete(mod)} title="Delete">
+                                    <button className={`${styles.actionBtn} ${styles.dangerBtn}`} onClick={() => handleDelete(item)} title="Delete">
                                         <Trash2 size={18} />
                                     </button>
                                 </div>
@@ -324,7 +467,12 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
                     </div>
                 ) : (
                     <div className={styles.modList}>
-                        {searchMods.length === 0 && !loading && !searchQuery ? (
+                        {!loading && searchItems.length > 0 && (
+                            <div className={styles.listHeader}>
+                                {searchQuery ? `Search Results for "${searchQuery}"` : `Featured ${config.title}`}
+                            </div>
+                        )}
+                        {searchItems.length === 0 && !loading && !searchQuery ? (
                             <div style={{
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -334,29 +482,29 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
                                 color: '#666'
                             }}>
                                 <Search size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
-                                <h3 style={{ marginTop: 0 }}>Search Mods</h3>
+                                <h3 style={{ marginTop: 0 }}>Search {config.title}</h3>
                                 <p>Enter a keyword to search Modrinth.</p>
                             </div>
-                        ) : searchMods.length === 0 && !loading && debouncedQuery && searchQuery === debouncedQuery ? (
+                        ) : searchItems.length === 0 && !loading && debouncedQuery && searchQuery === debouncedQuery ? (
                             <div style={{ padding: 20, color: '#666' }}>No results found for "{searchQuery}".</div>
                         ) : (
-                            searchMods.map(mod => (
-                                <div key={mod.id} className={styles.modItem}>
-                                    <img src={mod.icon_url || 'https://placehold.co/48'} style={{ width: 48, height: 48, borderRadius: 8 }} alt={mod.title} />
+                            searchItems.map(item => (
+                                <div key={item.id} className={styles.modItem}>
+                                    <img src={item.icon_url || 'https://placehold.co/48'} style={{ width: 48, height: 48, borderRadius: 8 }} alt={item.title} />
                                     <div style={{ flex: 1 }}>
-                                        <div className={styles.modName}>{mod.title}</div>
-                                        <div className={styles.modMeta}>{mod.description}</div>
+                                        <div className={styles.modName}>{item.title}</div>
+                                        <div className={styles.modMeta}>{item.description}</div>
                                         <div className={styles.modMeta}>
                                             <Download size={12} style={{ marginRight: 4 }} />
-                                            {mod.downloads} downloads
+                                            {item.downloads} downloads
                                         </div>
                                     </div>
                                     <button
                                         className={styles.installBtn}
-                                        onClick={() => handleInstallClick(mod)}
-                                        disabled={installingId === mod.id}
+                                        onClick={() => handleInstallClick(item)}
+                                        disabled={installingId === item.id}
                                     >
-                                        {installingId === mod.id ? `Installing ${downloadProgress}%` : 'Install'}
+                                        {installingId === item.id ? `Installing ${downloadProgress}%` : 'Install'}
                                     </button>
                                 </div>
                             ))
@@ -369,7 +517,13 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
                 <ModVersionSelector
                     mod={versionSelectorMod}
                     instanceMeta={instanceMeta}
-                    onClose={() => setVersionSelectorMod(null)}
+                    onClose={() => {
+                        setVersionSelectorMod(null);
+                        if (warningToastId) {
+                            removeToast(warningToastId);
+                            setWarningToastId(null);
+                        }
+                    }}
                     onInstall={handleVersionInstall}
                 />
             )}

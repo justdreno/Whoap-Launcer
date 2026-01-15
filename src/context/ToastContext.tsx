@@ -11,7 +11,8 @@ interface Toast {
 }
 
 interface ToastContextType {
-    showToast: (message: string, type?: ToastType) => void;
+    showToast: (message: string, type?: ToastType, options?: { persistent?: boolean }) => string;
+    removeToast: (id: string) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -27,23 +28,26 @@ export const useToast = () => {
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [toasts, setToasts] = useState<Toast[]>([]);
 
-    const showToast = useCallback((message: string, type: ToastType = 'info') => {
+    const showToast = useCallback((message: string, type: ToastType = 'info', options?: { persistent?: boolean }) => {
         const id = Math.random().toString(36).substr(2, 9);
         const newToast = { id, message, type };
         setToasts(prev => [...prev, newToast]);
 
-        // Auto remove after 3s
-        setTimeout(() => {
-            removeToast(id);
-        }, 3000);
+        // Auto remove after 3s if not persistent
+        if (!options?.persistent) {
+            setTimeout(() => {
+                removeToast(id);
+            }, 3000);
+        }
+        return id;
     }, []);
 
-    const removeToast = (id: string) => {
+    const removeToast = useCallback((id: string) => {
         setToasts(prev => prev.filter(t => t.id !== id));
-    };
+    }, []);
 
     return (
-        <ToastContext.Provider value={{ showToast }}>
+        <ToastContext.Provider value={{ showToast, removeToast }}>
             {children}
             <div className={styles.toastContainer}>
                 {toasts.map(toast => (

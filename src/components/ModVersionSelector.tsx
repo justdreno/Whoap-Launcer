@@ -35,7 +35,9 @@ export const ModVersionSelector: React.FC<Props> = ({ mod, instanceMeta, onClose
 
     const getCompatible = () => {
         const loader = instanceMeta.loader.toLowerCase();
-        return versions.filter((v: any) => {
+        const supportsStandardLoader = loader === 'fabric' || loader === 'forge';
+
+        return versions.map((v: any) => {
             const supportsLoader = v.loaders.includes(loader) ||
                 (loader === 'quilt' && v.loaders.includes('fabric')) ||
                 (loader === 'neoforge' && v.loaders.includes('forge'));
@@ -47,8 +49,17 @@ export const ModVersionSelector: React.FC<Props> = ({ mod, instanceMeta, onClose
                 v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 v.version_number.includes(searchQuery);
 
-            return matchesSearch && (filterAll || (supportsLoader && supportsVersion));
-        });
+            // Special: Detection validation
+            const hasLetters = /[a-zA-Z]/.test(v.version_number);
+            const needsWarning = hasLetters || !supportsStandardLoader;
+
+            return {
+                ...v,
+                isCompatible: supportsLoader && supportsVersion,
+                matchesSearch,
+                needsWarning
+            };
+        }).filter(v => v.matchesSearch && (filterAll || v.isCompatible));
     };
 
     const compatibleVersions = getCompatible();
@@ -111,6 +122,19 @@ export const ModVersionSelector: React.FC<Props> = ({ mod, instanceMeta, onClose
                                         <div className={styles.verMeta}>
                                             {v.loaders.join(', ')} • {v.game_versions.join(', ')}
                                         </div>
+                                        {v.needsWarning && (
+                                            <div className={styles.verWarning} style={{
+                                                color: '#ff8800',
+                                                fontSize: '0.75rem',
+                                                marginTop: 4,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 4
+                                            }}>
+                                                <AlertTriangle size={12} />
+                                                <span>Version detect failed, likely imported manually. Please consider that mods, shader packs, or resource packs may conflict.</span>
+                                            </div>
+                                        )}
                                     </div>
                                     <button
                                         className={styles.pBtn}

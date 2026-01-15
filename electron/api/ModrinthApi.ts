@@ -36,7 +36,7 @@ export class ModrinthApi {
     /**
      * Search for projects (mods or modpacks)
      */
-    static async searchProjects(query: string, type: 'mod' | 'modpack', limit = 20, index = 'relevance'): Promise<ModrinthProject[]> {
+    static async searchProjects(query: string, type: 'mod' | 'modpack' | 'resourcepack' | 'shader', limit = 20, index = 'relevance'): Promise<ModrinthProject[]> {
         try {
             const facets = [
                 [`project_type:${type}`]

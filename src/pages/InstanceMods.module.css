@@ -75,6 +75,46 @@
     transform: translateX(-2px);
 }
 
+.contentTypeTabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 6px;
+    border-radius: 14px;
+    width: fit-content;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.contentTypeBtn {
+    background: transparent;
+    border: none;
+    padding: 8px 16px;
+    color: #888;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.contentTypeBtn:hover {
+    color: #eee;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.active {
+    /* Base active style for standard tabs */
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.contentTypeBtn.active {
+    background: #ffaa00;
+    color: #000;
+    box-shadow: 0 4px 12px rgba(255, 170, 0, 0.2);
+}
+
 .tabs {
     display: flex;
     gap: 8px;
@@ -102,8 +142,8 @@
 }
 
 .tabBtn.active {
-    color: #fff;
     background: rgba(255, 255, 255, 0.1);
+    color: #fff;
 }
 
 .searchArea {
@@ -170,6 +210,16 @@
     padding-top: 8px;
     /* Prevent hover cutoff */
     padding-bottom: 8px;
+}
+
+.listHeader {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+    padding-left: 4px;
 }
 
 .modItem {
