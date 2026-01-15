@@ -22,10 +22,6 @@ export class SkinServerManager {
         // Calculate offline UUID for this user to support cracked servers
         const offlineUuid = SkinServerManager.getOfflineUuid(name);
         SkinServerManager.currentUser = { uuid, name, offlineUuid };
-
-        console.log(`[SkinServer] Current user set: ${name}`);
-        console.log(`[SkinServer] - Real UUID: ${uuid}`);
-        console.log(`[SkinServer] - Offline UUID: ${offlineUuid}`);
     }
 
     public static getCurrentUser() {
@@ -50,9 +46,7 @@ export class SkinServerManager {
         try {
             const testPayload = "eyJ0ZXN0IjoidmFsdWUifQ=="; // base64 of {"test":"value"}
             const signature = this.sign(testPayload);
-            const isValid = this.key.verify(Buffer.from(testPayload, 'utf-8'), signature, undefined, 'base64');
-            console.log(`[SkinServer] Self-test signature verification: ${isValid ? 'PASSED' : 'FAILED'}`);
-            console.log(`[SkinServer] Public Key Header: ${this.getPublicKey().split('\n')[0]}`);
+            this.key.verify(Buffer.from(testPayload, 'utf-8'), signature, undefined, 'base64');
         } catch (e) {
             console.error(`[SkinServer] Self-test failed:`, e);
         }
@@ -63,7 +57,6 @@ export class SkinServerManager {
             if (fs.existsSync(this.keyPath)) {
                 const keyData = fs.readFileSync(this.keyPath, 'utf-8');
                 const key = new NodeRSA(keyData);
-                console.log('[SkinServer] Loaded existing RSA key');
                 return key;
             }
         } catch (err) {
@@ -77,7 +70,6 @@ export class SkinServerManager {
         // Save for future use
         try {
             fs.writeFileSync(this.keyPath, key.exportKey('private'));
-            console.log('[SkinServer] Generated and saved new RSA key');
         } catch (err) {
             console.error('[SkinServer] Failed to save RSA key:', err);
         }
@@ -199,8 +191,6 @@ export class SkinServerManager {
 
         // DEBUG LOGGING MIDDLEWARE
         this.app_express.use((req, res, next) => {
-            console.log(`[SkinServer] ${req.method} ${req.url}`);
-            console.log(`[SkinServer] Current User:`, SkinServerManager.currentUser?.name || 'None');
             next();
         });
 
@@ -216,7 +206,7 @@ export class SkinServerManager {
                     "localhost",
                     "127.0.0.1",
                     ".supabase.co",
-                    "tjtutxeqkbkjfawdyazc.supabase.co",
+                    "ibtctzkqzezrtcglicjf.supabase.co",
                     ".minecraft.net",
                     "textures.minecraft.net",
                     "mc-heads.net",
@@ -224,7 +214,6 @@ export class SkinServerManager {
                 ],
                 signaturePublickey: this.getPublicKey()
             };
-            console.log(`[SkinServer] Serving root metadata. Current user: ${SkinServerManager.currentUser?.name || 'None'}`);
             res.json(metadata);
         });
 
@@ -240,7 +229,7 @@ export class SkinServerManager {
                     "localhost",
                     "127.0.0.1",
                     ".supabase.co",
-                    "tjtutxeqkbkjfawdyazc.supabase.co",
+                    "ibtctzkqzezrtcglicjf.supabase.co",
                     ".minecraft.net",
                     "textures.minecraft.net",
                     "mc-heads.net",
@@ -277,13 +266,11 @@ export class SkinServerManager {
                 const cleanOfflineUuid = currentUser.offlineUuid ? currentUser.offlineUuid.replace(/-/g, '') : '';
 
                 if (cleanRequestUuid === cleanRealUuid) {
-                    console.log(`[SkinServer] Match found for REAL UUID: ${cleanRequestUuid}`);
                     username = currentUser.name;
                     // For the skin mapping, we use the REAL UUID as the key because that's what the file is named
                     // targetUuid = currentUser.uuid; // No longer needed directly here
                     isMatch = true;
                 } else if (cleanRequestUuid === cleanOfflineUuid) {
-                    console.log(`[SkinServer] Match found for OFFLINE UUID: ${cleanRequestUuid}`);
                     username = currentUser.name;
                     // CRITICAL: Even though they asked for the offline UUID, we must serve the skin 
                     // associated with the REAL UUID (because that's the filename we have).
@@ -327,9 +314,7 @@ export class SkinServerManager {
 
             // Log what we're doing
             if (responseProperties && responseProperties.length > 0) {
-                const propertiesDecoded = JSON.parse(Buffer.from(responseProperties[0].value, 'base64').toString());
-                console.log(`[SkinServer] Serving profile for ${username} (${cleanRequestUuid})`);
-                console.log(`[SkinServer] - Payload:`, JSON.stringify(propertiesDecoded, null, 2));
+                // responseProperties verified
             }
 
             const response: any = {
@@ -344,16 +329,10 @@ export class SkinServerManager {
         // Skin Proxy Endpoint
         this.app_express.get('/skins/:filename', (req: Request, res: Response) => {
             const { filename } = req.params;
-            const SUPABASE_PROJECT = 'tjtutxeqkbkjfawdyazc';
+            const SUPABASE_PROJECT = 'ibtctzkqzezrtcglicjf';
             const upstreamUrl = `https://${SUPABASE_PROJECT}.supabase.co/storage/v1/object/public/skins/${filename}`;
 
-            console.log(`[SkinServer] =======================================`);
-            console.log(`[SkinServer] Skin Request: ${filename}`);
-            console.log(`[SkinServer] Fetching from: ${upstreamUrl}`);
-            console.log(`[SkinServer] =======================================`);
-
             https.get(upstreamUrl, (upstreamRes) => {
-                console.log(`[SkinServer] Supabase response status: ${upstreamRes.statusCode}`);
 
                 if (upstreamRes.statusCode === 200) {
                     res.setHeader('Content-Type', 'image/png');
@@ -361,11 +340,7 @@ export class SkinServerManager {
                     res.setHeader('Pragma', 'no-cache');
                     res.setHeader('Expires', '0');
                     upstreamRes.pipe(res);
-                    console.log(`[SkinServer] ✓ Skin served successfully: ${filename}`);
                 } else {
-                    console.log(`[SkinServer] ✗ Skin not found on Supabase!`);
-                    console.log(`[SkinServer] ✗ Please upload your skin via the Profile page`);
-                    console.log(`[SkinServer] ✗ URL checked: ${upstreamUrl}`);
                     res.status(404).send('Skin not found');
                 }
             }).on('error', (err) => {
@@ -377,7 +352,7 @@ export class SkinServerManager {
         // Cape Proxy Endpoint
         this.app_express.get('/capes/:filename', (req: Request, res: Response) => {
             const { filename } = req.params;
-            const SUPABASE_PROJECT = 'tjtutxeqkbkjfawdyazc';
+            const SUPABASE_PROJECT = 'ibtctzkqzezrtcglicjf';
             const upstreamUrl = `https://${SUPABASE_PROJECT}.supabase.co/storage/v1/object/public/capes/${filename}`;
 
             console.log(`[SkinServer] Proxying cape: ${filename} from ${upstreamUrl}`);
@@ -389,7 +364,6 @@ export class SkinServerManager {
                     res.setHeader('Pragma', 'no-cache');
                     res.setHeader('Expires', '0');
                     upstreamRes.pipe(res);
-                    console.log(`[SkinServer] ✓ Cape served successfully: ${filename}`);
                 } else {
                     // Silent fail for capes (most users don't have capes)
                     res.status(404).send('Cape not found');
@@ -445,7 +419,6 @@ export class SkinServerManager {
             console.log(`[SkinServer] =======================================`);
 
             if (!currentUser) {
-                console.log('[SkinServer] ✗ No current user set, returning 404');
                 res.status(404).json({ error: "NOT_FOUND", errorMessage: "Not Found" });
                 return;
             }
@@ -460,10 +433,6 @@ export class SkinServerManager {
 
             const skinUrl = `http://localhost:${this.port}/skins/${uuid}.png`;
             const capeUrl = `http://localhost:${this.port}/capes/${uuid}.png`;
-
-            console.log(`[SkinServer] ✓ Returning MinecraftServices profile for ${currentUser.name}`);
-            console.log(`[SkinServer] - Skin URL: ${skinUrl}`);
-            console.log(`[SkinServer] - Cape URL: ${capeUrl}`);
 
             // Return profile in MinecraftServices format
             res.json({
@@ -487,7 +456,6 @@ export class SkinServerManager {
 
     public start() {
         this.server = this.app_express.listen(this.port, '127.0.0.1', () => {
-            console.log(`[SkinServer] Running on http://127.0.0.1:${this.port}`);
         });
     }
 }

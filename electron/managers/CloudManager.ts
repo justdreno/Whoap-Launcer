@@ -4,8 +4,8 @@ import { ipcMain } from 'electron';
 
 // Reusing credentials from src/lib/supabase.ts
 // Ideally these should be in .env but for MVP consistency we match existing codebase
-const SUPABASE_URL = 'https://tjtutxeqkbkjfawdyazc.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRqdHV0eGVxa2JramZhd2R5YXpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgyNzQ1MDAsImV4cCI6MjA4Mzg1MDUwMH0.eOEBUe7JcSTs4EqMmiWytq6JERzBQD1eSyuRBrx_9AQ';
+const SUPABASE_URL = 'https://ibtctzkqzezrtcglicjf.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlidGN0emtxemV6cnRjZ2xpY2pmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzNjg3OTksImV4cCI6MjA4Mzk0NDc5OX0.aLmdhQAzc-Rp7ynaschWNEnHDK1TMmeweBj2l4LuIvY';
 
 export class CloudManager {
     public supabase: SupabaseClient;

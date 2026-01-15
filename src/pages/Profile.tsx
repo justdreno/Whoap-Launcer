@@ -163,15 +163,33 @@ export const Profile: React.FC<ProfileProps> = ({ user }) => {
         if (!file) return;
         if (!file.name.endsWith('.png')) { showToast('Only .png files allowed', 'error'); return; }
 
+        // Sanity check: Ensure we have a session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            showToast('Session expired. Please re-login.', 'error');
+            return;
+        }
+
         const objectUrl = URL.createObjectURL(file);
         setSkinUrl(objectUrl);
 
         setIsUploading(true);
         try {
-            const { error } = await supabase.storage.from('skins').upload(`${user.uuid}.png`, file, { upsert: true });
-            if (error) throw error;
+            const { data, error } = await supabase.storage.from('skins').upload(`${user.uuid}.png`, file, {
+                upsert: true,
+                cacheControl: '0'
+            });
+
+            if (error) {
+                console.error("[Profile] Skin upload error details:", error);
+                throw error;
+            }
+
             showToast('Skin uploaded!', 'success');
-        } catch (e: any) { showToast(`Upload failed: ${e.message}`, 'error'); }
+        } catch (e: any) {
+            showToast(`Upload failed: ${e.message}`, 'error');
+            console.error("[Profile] Upload failed trace:", e);
+        }
         finally { setIsUploading(false); }
     };
 
@@ -184,15 +202,33 @@ export const Profile: React.FC<ProfileProps> = ({ user }) => {
         if (!file) return;
         if (!file.name.endsWith('.png')) { showToast('Only .png files allowed', 'error'); return; }
 
+        // Sanity check: Ensure we have a session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            showToast('Session expired. Please re-login.', 'error');
+            return;
+        }
+
         const objectUrl = URL.createObjectURL(file);
         setCapeUrl(objectUrl);
 
         setIsUploading(true);
         try {
-            const { error } = await supabase.storage.from('capes').upload(`${user.uuid}.png`, file, { upsert: true });
-            if (error) throw error;
+            const { data, error } = await supabase.storage.from('capes').upload(`${user.uuid}.png`, file, {
+                upsert: true,
+                cacheControl: '0'
+            });
+
+            if (error) {
+                console.error("[Profile] Cape upload error details:", error);
+                throw error;
+            }
+
             showToast('Cape uploaded!', 'success');
-        } catch (e: any) { showToast(`Upload failed: ${e.message}`, 'error'); }
+        } catch (e: any) {
+            showToast(`Upload failed: ${e.message}`, 'error');
+            console.error("[Profile] Upload failed trace:", e);
+        }
         finally { setIsUploading(false); }
     };
 

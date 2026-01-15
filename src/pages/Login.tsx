@@ -158,40 +158,42 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onOfflineLogin }) 
         }
     };
 
+    const handleAccountSelect = async (account: StoredAccount) => {
+        setIsLoggingIn(true);
+        try {
+            AccountManager.setActive(account.uuid);
+
+            // Save session to electron-store for persistence across app restarts
+            await window.ipcRenderer.invoke('auth:save-whoap-session', {
+                name: account.name,
+                uuid: account.uuid,
+                token: account.token,
+                refreshToken: account.refreshToken
+            });
+
+            // Sync Supabase session if it's a whoap account
+            if (account.type === 'whoap' && account.token) {
+                const { CloudManager } = await import('../utils/CloudManager');
+                await CloudManager.syncSession(account.token, account.refreshToken);
+            }
+
+            onLoginSuccess({
+                name: account.name,
+                uuid: account.uuid,
+                token: account.token,
+                type: account.type
+            });
+        } catch (err) {
+            console.error("Account selection failed", err);
+            setError("Failed to switch account.");
+        } finally {
+            setIsLoggingIn(false);
+        }
+    };
+
     const playWithAccount = async () => {
         if (!selectedAccount) return;
-        AccountManager.setActive(selectedAccount.uuid);
-
-        // Save session to electron-store for persistence across app restarts
-        if (selectedAccount.type === 'whoap') {
-            await window.ipcRenderer.invoke('auth:save-whoap-session', {
-                name: selectedAccount.name,
-                uuid: selectedAccount.uuid,
-                token: selectedAccount.token,
-                refreshToken: selectedAccount.refreshToken
-            });
-        } else if (selectedAccount.type === 'microsoft') {
-            // For Microsoft accounts, save via the appropriate handler
-            await window.ipcRenderer.invoke('auth:save-whoap-session', {
-                name: selectedAccount.name,
-                uuid: selectedAccount.uuid,
-                token: selectedAccount.token,
-                refreshToken: selectedAccount.refreshToken
-            });
-        }
-
-        // Sync Supabase session if it's a whoap account
-        if (selectedAccount.type === 'whoap' && selectedAccount.token) {
-            const { CloudManager } = await import('../utils/CloudManager');
-            await CloudManager.syncSession(selectedAccount.token!, selectedAccount.refreshToken);
-        }
-
-        onLoginSuccess({
-            name: selectedAccount.name,
-            uuid: selectedAccount.uuid,
-            token: selectedAccount.token,
-            type: selectedAccount.type
-        });
+        handleAccountSelect(selectedAccount);
     };
 
     const removeAccount = (uuid: string) => {
@@ -380,7 +382,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onOfflineLogin }) 
                                         <div
                                             key={acc.uuid}
                                             className={styles.dropdownItem}
-                                            onClick={() => { setSelectedAccount(acc); setShowAccountDropdown(false); }}
+                                            onClick={() => {
+                                                setSelectedAccount(acc);
+                                                setShowAccountDropdown(false);
+                                                // Automatically trigger play with this account
+                                                handleAccountSelect(acc);
+                                            }}
                                         >
                                             <UserAvatar
                                                 username={acc.name}

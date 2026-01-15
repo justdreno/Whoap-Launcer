@@ -42,10 +42,9 @@ function App() {
     const [checkingSession, setCheckingSession] = useState(true);
     const [isOnline, setIsOnline] = useState(true);
 
-    // Check for existing session on startup
+    // Check for existing session on startup and listen for changes
     useEffect(() => {
         const checkSession = async () => {
-            console.log("[App] Checking session...");
             try {
                 // Timeout after 3 seconds if backend is slow/hung
                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Session check timed out")), 3000));
@@ -53,7 +52,6 @@ function App() {
 
                 const result: any = await Promise.race([sessionPromise, timeoutPromise]);
 
-                console.log("[App] Session result:", result);
                 if (result && result.success && result.profile) {
                     // Fetch role from database dynamically
                     let role = 'user';
@@ -76,19 +74,56 @@ function App() {
 
                     // Sync Supabase session if it's a whoap account
                     if (result.profile.type === 'whoap' && result.profile.token) {
-                        import('./utils/CloudManager').then(({ CloudManager }) => {
-                            CloudManager.syncSession(result.profile.token, result.profile.refreshToken);
-                        });
+                        const { CloudManager } = await import('./utils/CloudManager');
+                        CloudManager.syncSession(result.profile.token, result.profile.refreshToken);
                     }
                 }
             } catch (e) {
                 console.error("[App] Session check failed or timed out", e);
             } finally {
-                console.log("[App] Session check done, dismissing splash soon...");
                 setCheckingSession(false);
             }
         };
+
         checkSession();
+
+        // Listen for auth state changes (especially token refresh)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                if (session) {
+                    const { AccountManager } = await import('./utils/AccountManager');
+
+                    // Update user state
+                    setUser((prev: any) => ({
+                        ...prev,
+                        token: session.access_token,
+                        uuid: session.user.id,
+                        name: session.user.user_metadata.display_name || prev?.name || 'User'
+                    }));
+
+                    // Sync with AccountManager (localStorage)
+                    AccountManager.addAccount({
+                        name: session.user.user_metadata.display_name || 'User',
+                        uuid: session.user.id,
+                        token: session.access_token,
+                        refreshToken: session.refresh_token,
+                        type: 'whoap'
+                    });
+
+                    // Sync with main process SessionStore
+                    window.ipcRenderer.invoke('auth:update-session', {
+                        token: session.access_token,
+                        refreshToken: session.refresh_token
+                    });
+                }
+            } else if (event === 'SIGNED_OUT') {
+                setUser(null);
+            }
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
     }, []);
 
     const handleLogout = async () => {

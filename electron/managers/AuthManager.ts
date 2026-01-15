@@ -94,5 +94,16 @@ export class AuthManager {
             SessionStore.save(session);
             return { success: true };
         });
+
+        // Update existing session (e.g. after token refresh)
+        ipcMain.handle('auth:update-session', async (_, updateData: Partial<StoredSession>) => {
+            const current = SessionStore.get();
+            if (current) {
+                const updated = { ...current, ...updateData };
+                SessionStore.save(updated);
+                return { success: true };
+            }
+            return { success: false, error: 'No active session to update' };
+        });
     }
 }
