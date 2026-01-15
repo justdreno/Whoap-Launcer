@@ -1,0 +1,166 @@
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    /* Darker backdrop */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(10px);
+}
+
+.modal {
+    background: #18181b;
+    /* Zinc-900 like color */
+    padding: 30px;
+    border-radius: 16px;
+    width: 420px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+    color: white;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+}
+
+.closeIcon {
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 5px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.closeIcon:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.modal h2 {
+    margin: 0;
+    font-weight: 600;
+    font-size: 1.25rem;
+}
+
+.formGroup {
+    margin-bottom: 24px;
+}
+
+.formGroup label {
+    display: block;
+    margin-bottom: 8px;
+    color: #a1a1aa;
+    /* Zinc-400 */
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+.input {
+    width: 100%;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.05);
+    /* Matching custom select */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: white;
+    font-size: 1em;
+    box-sizing: border-box;
+    /* Fix padding issue */
+    transition: all 0.2s;
+}
+
+.input:focus {
+    outline: none;
+    border-color: #646cff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 35px;
+}
+
+.cancelBtn,
+.createBtn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.95em;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.cancelBtn {
+    background: transparent;
+    color: #a1a1aa;
+}
+
+.cancelBtn:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.createBtn {
+    background: #646cff;
+    color: white;
+}
+
+.createBtn:hover {
+    background: #535bf2;
+    transform: translateY(-1px);
+}
+
+.createBtn:active {
+    transform: translateY(0);
+}
+
+.createBtn:disabled {
+    background: #333;
+    color: #666;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.error {
+    color: #f87171;
+    margin-bottom: 15px;
+    font-size: 0.9em;
+    background: rgba(248, 113, 113, 0.1);
+    padding: 10px;
+    border-radius: 6px;
+}
+
+.loadingVersions {
+    color: #666;
+    font-style: italic;
+    font-size: 0.9em;
+}

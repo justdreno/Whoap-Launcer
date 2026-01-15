@@ -1,0 +1,266 @@
+.container {
+    padding: 40px;
+    height: 100%;
+    overflow-y: auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 40px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #1a1a1a;
+}
+
+.header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0;
+    color: #fff;
+}
+
+.refreshBtn {
+    background: transparent;
+    border: 1px solid #333;
+    color: #888;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-right: 12px;
+}
+
+.refreshBtn:hover {
+    border-color: #666;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.createBtn,
+.createBtnBig {
+    background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+    color: #fff;
+    border: 1px solid #333;
+    padding: 12px 24px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.createBtn:hover,
+.createBtnBig:hover {
+    border-color: #ffaa00;
+    color: #ffaa00;
+    background: #2a2a2a;
+    transform: translateY(-2px);
+}
+
+.createBtnBig {
+    background: linear-gradient(135deg, #ff7b00, #ff9500);
+    border: none;
+    color: #000;
+    font-size: 16px;
+    padding: 16px 32px;
+}
+
+.createBtnBig:hover {
+    background: linear-gradient(135deg, #ff8800, #ffaa00);
+    color: #000;
+    box-shadow: 0 10px 20px rgba(255, 123, 0, 0.3);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 24px;
+    padding-bottom: 40px;
+}
+
+.loading {
+    color: #666;
+    text-align: center;
+    margin-top: 80px;
+    font-size: 16px;
+}
+
+.emptyState {
+    text-align: center;
+    grid-column: 1 / -1;
+    margin-top: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 60px;
+    background: #141414;
+    border: 1px dashed #333;
+    border-radius: 24px;
+}
+
+.emptyIcon {
+    font-size: 48px;
+    margin-bottom: 24px;
+    opacity: 0.5;
+}
+
+.emptyState h3 {
+    margin: 0 0 12px 0;
+    color: #fff;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.emptyState p {
+    color: #888;
+    margin-bottom: 32px;
+}
+
+.instanceCard {
+    background: #141414;
+    border-radius: 20px;
+    padding: 24px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #222;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.instanceCard:hover {
+    transform: translateY(-6px);
+    border-color: #ffaa00;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.instanceCard::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, #ff7b00, #ffaa00);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.instanceCard:hover::before {
+    opacity: 1;
+}
+
+.instanceIcon {
+    width: 60px;
+    height: 60px;
+    background: #1f1f1f;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 800;
+    color: #fff;
+    box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.1);
+}
+
+.instanceInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.instanceName {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.instanceMeta {
+    font-size: 13px;
+    color: #666;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.playOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    backdrop-filter: blur(2px);
+}
+
+.instanceCard:hover .playOverlay {
+    opacity: 1;
+}
+
+.playOverlay span {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #ffaa00;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.modsBtn {
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.modsBtn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #fff;
+}
+
+/* Scrollbar */
+.container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.container::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 4px;
+}
+
+.container::-webkit-scrollbar-thumb:hover {
+    background: #444;
+}

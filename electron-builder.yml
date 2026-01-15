@@ -1,0 +1,72 @@
+appId: com.whoap.launcher
+productName: Whoap Launcher
+directories:
+  output: release
+  buildResources: resources
+
+# ASAR is crucial for performance and smaller size
+asar: true
+compression: maximum
+
+files:
+  - from: "."
+    filter:
+      - "dist-react/**/*"    # Frontend Build
+      - "dist-electron/**/*" # Backend Build
+      - "package.json"
+      # Exclude source files & dev junk
+      - "!src"
+      - "!scripts"
+      - "!tsconfig*.json"
+      - "!vite.config.ts"
+      - "!.gitignore"
+      - "!.env"
+      # Only include production dependencies (auto handled by builder usually, but good to be explicit)
+      - "!node_modules"
+
+# If you REALLY need specific modules that aren't being picked up automatically
+# electron-builder usually picks up dependencies from package.json automatically.
+# Only uncomment below if you have issues running the built app.
+#  - "node_modules/msmc/**/*"
+#  - "node_modules/node-rsa/**/*"
+
+extraResources:
+  - from: src/assets/logo.png
+    to: icon.png
+  # If you have other external resources like java agent jar, add them here
+  # - from: resources/authlib-injector.jar
+  #   to: authlib-injector.jar
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: src/assets/logo.png
+  artifactName: "${productName}-Setup-${version}.${ext}"
+
+nsis:
+  oneClick: false
+  perMachine: false # Install to AppData (no admin needed)
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+mac:
+  target:
+    - dmg
+  icon: src/assets/logo.png
+  category: public.app-category.games
+
+linux:
+  target:
+    - AppImage
+  icon: src/assets/logo.png
+  category: Game
+
+publish:
+  provider: github
+  owner: YOUR_GITHUB_USERNAME
+  repo: whoap-launcher
+  releaseType: release

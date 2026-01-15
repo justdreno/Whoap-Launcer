@@ -1,0 +1,49 @@
+.layout {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background-color: var(--bg-app);
+}
+
+.background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    /* background-image set via inline style */
+    background-size: cover;
+    background-position: center;
+    z-index: -1;
+}
+
+.background::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    /* Dark overlay */
+    backdrop-filter: blur(5px);
+}
+
+.body {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    height: 100%;
+    padding-top: 0;
+    /* Titlebar is fixed over it, but sidebar handles padding */
+}
+
+.content {
+    flex: 1;
+    padding: calc(var(--titlebar-height) + 24px) 32px 32px 32px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
