@@ -136,6 +136,25 @@ app.whenReady().then(() => {
         }
     });
 
+    // Skin Server IPC handlers for multiplayer support
+    ipcMain.handle('skin:register-player', async (_, playerData: { uuid: string; name: string; realUuid: string }) => {
+        try {
+            SkinServerManager.registerPlayer(playerData.uuid, playerData.name, playerData.realUuid);
+            return { success: true };
+        } catch (e) {
+            return { success: false, error: String(e) };
+        }
+    });
+
+    ipcMain.handle('skin:get-server-info', async () => {
+        const skinServer = SkinServerManager.getInstance();
+        return {
+            url: `http://localhost:${skinServer?.getPort() || 3000}`,
+            port: skinServer?.getPort() || 3000,
+            multiplayerEnabled: true
+        };
+    });
+
     ipcMain.on('window-minimize', () => win?.minimize());
     ipcMain.on('window-maximize', () => {
         if (win?.isMaximized()) {

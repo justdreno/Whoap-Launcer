@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Instance } from './InstanceManager';
 import { ipcMain } from 'electron';
+import { SkinServerManager } from './SkinServerManager';
 
 // Reusing credentials from src/lib/supabase.ts
 // Ideally these should be in .env but for MVP consistency we match existing codebase
@@ -29,6 +30,105 @@ export class CloudManager {
         ipcMain.handle('cloud:delete-instance', async (_, instanceName: string, userId: string) => {
             return await this.deleteInstance(instanceName, userId);
         });
+
+        // Lookup Whoap user by username (for multiplayer skin visibility)
+        ipcMain.handle('cloud:lookup-whoap-user', async (_, username: string) => {
+            return await this.lookupWhoapUser(username);
+        });
+
+        // Lookup multiple Whoap users by usernames
+        ipcMain.handle('cloud:lookup-whoap-users', async (_, usernames: string[]) => {
+            return await this.lookupWhoapUsers(usernames);
+        });
+
+        // Register a player for skin visibility on multiplayer servers
+        ipcMain.handle('cloud:register-multiplayer-player', async (_, playerData: { uuid: string; name: string }) => {
+            return await this.registerMultiplayerPlayer(playerData.uuid, playerData.name);
+        });
+    }
+
+    // Look up a Whoap user by username and register them for skin visibility
+    async lookupWhoapUser(username: string): Promise<{ success: boolean; user?: { uuid: string; name: string }; error?: string }> {
+        try {
+            const { data, error } = await this.supabase
+                .from('profiles')
+                .select('id, username')
+                .ilike('username', username)
+                .limit(1)
+                .single();
+
+            if (error || !data) {
+                return { success: false, error: 'User not found' };
+            }
+
+            // Register this user in the skin server cache
+            SkinServerManager.registerPlayer(data.id, data.username, data.id);
+
+            return { success: true, user: { uuid: data.id, name: data.username } };
+        } catch (e) {
+            console.error('[Cloud] Failed to lookup Whoap user:', e);
+            return { success: false, error: String(e) };
+        }
+    }
+
+    // Look up multiple Whoap users by usernames
+    async lookupWhoapUsers(usernames: string[]): Promise<{ success: boolean; users: { uuid: string; name: string }[]; error?: string }> {
+        try {
+            if (!usernames || usernames.length === 0) {
+                return { success: true, users: [] };
+            }
+
+            // Limit to 50 users per request for performance
+            const limitedUsernames = usernames.slice(0, 50);
+
+            const { data, error } = await this.supabase
+                .from('profiles')
+                .select('id, username')
+                .in('username', limitedUsernames);
+
+            if (error) {
+                return { success: false, users: [], error: error.message };
+            }
+
+            const users = (data || []).map(user => {
+                // Register each user in the skin server cache
+                SkinServerManager.registerPlayer(user.id, user.username, user.id);
+                return { uuid: user.id, name: user.username };
+            });
+
+            console.log(`[Cloud] Found ${users.length} Whoap users out of ${limitedUsernames.length} requested`);
+            return { success: true, users };
+        } catch (e) {
+            console.error('[Cloud] Failed to lookup Whoap users:', e);
+            return { success: false, users: [], error: String(e) };
+        }
+    }
+
+    // Register a multiplayer player for skin visibility (checks if they're a Whoap user)
+    async registerMultiplayerPlayer(uuid: string, username: string): Promise<{ success: boolean; isWhoapUser: boolean; error?: string }> {
+        try {
+            // First check if this is a Whoap user
+            const { data, error } = await this.supabase
+                .from('profiles')
+                .select('id, username')
+                .or(`id.eq.${uuid},username.ilike.${username}`)
+                .limit(1)
+                .single();
+
+            if (data) {
+                // This is a Whoap user - register with their real Whoap UUID
+                SkinServerManager.registerPlayer(uuid, username, data.id);
+                console.log(`[Cloud] ✓ Registered Whoap user: ${username} (${data.id})`);
+                return { success: true, isWhoapUser: true };
+            } else {
+                // Not a Whoap user - still register them but without Whoap skin
+                console.log(`[Cloud] Registered non-Whoap player: ${username}`);
+                return { success: true, isWhoapUser: false };
+            }
+        } catch (e) {
+            console.error('[Cloud] Failed to register multiplayer player:', e);
+            return { success: false, isWhoapUser: false, error: String(e) };
+        }
     }
 
     async deleteInstance(instanceName: string, userId: string) {

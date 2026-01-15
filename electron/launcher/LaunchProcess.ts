@@ -22,18 +22,9 @@ export class LaunchProcess {
 
     private registerListeners() {
         ipcMain.handle('game:launch', async (event, instanceId: string, _unusedPath: string, versionId: string, authData: any) => {
-            console.log(`[Launch] =======================================`);
-            console.log(`[Launch] Launch Request Received`);
-            console.log(`[Launch] - Instance: ${instanceId} (${versionId})`);
-            console.log(`[Launch] - Auth Data:`, JSON.stringify(authData, null, 2));
-            console.log(`[Launch] =======================================`);
-
             // Register current user with SkinServer so it can serve the correct skin
             if (authData.name && authData.uuid) {
-                console.log(`[Launch] ✓ Registering user with SkinServer: ${authData.name} (${authData.uuid})`);
                 SkinServerManager.setCurrentUser(authData.uuid, authData.name);
-            } else {
-                console.log(`[Launch] ✗ WARNING: No authData name/uuid found! Skin system will not work!`);
             }
 
             // Trigger Cloud Sync
@@ -59,8 +50,6 @@ export class LaunchProcess {
 
                 if (authData.type === 'supabase') {
                     CloudManager.getInstance().syncInstance(instanceObj, authData.uuid, authData.token);
-                } else {
-                    console.log(`[Launch] Skipping Cloud Sync (Auth type: ${authData.type})`);
                 }
             } catch (e) {
                 console.error("[Launch] Failed to trigger cloud sync", e);
@@ -106,12 +95,6 @@ export class LaunchProcess {
             let instancePath = (isNativeInstance && !useExternalPath)
                 ? instanceRootPath
                 : (useExternalPath || versionHasCustomContent ? versionFolder : gamePath);
-
-            if ((useExternalPath || versionHasCustomContent) && !isNativeInstance) {
-                console.log(`[Launch] Detected TLauncher-style version isolation for ${versionId}`);
-            } else if (useExternalPath) {
-                console.log(`[Launch] Using external reference path for ${instanceId}: ${versionFolder}`);
-            }
 
             try {
                 // 1. Fetch Version Data
@@ -161,13 +144,10 @@ export class LaunchProcess {
                 // Resolve Inheritance (e.g. Fabric -> Vanilla)
                 // We do this concurrently to ensure we have all data (libraries, client jar, etc.)
                 const resolveInheritance = async (data: any): Promise<any> => {
-                    console.log(`[Launch] Checking inheritance for ${data.id}. InheritsFrom: ${data.inheritsFrom}`);
                     if (data.inheritsFrom) {
-                        console.log(`[Launch] Resolving inheritance from ${data.inheritsFrom}...`);
                         let parentData = await VersionManager.getVersionDetails(data.inheritsFrom);
 
                         if (!parentData) {
-                            console.warn(`[Launch] Parent version ${data.inheritsFrom} not found remotely. Checking local...`);
                             const parentLocalPath = path.join(gamePath, 'versions', data.inheritsFrom, `${data.inheritsFrom}.json`);
                             if (fs.existsSync(parentLocalPath)) {
                                 try { parentData = JSON.parse(fs.readFileSync(parentLocalPath, 'utf-8')); } catch { }
@@ -175,7 +155,6 @@ export class LaunchProcess {
                         }
 
                         if (parentData) {
-                            console.log(`[Launch] Parent data found. Merging...`);
                             parentData = await resolveInheritance(parentData); // Recursive
 
                             // Merge and Deduplicate Libraries
@@ -203,7 +182,6 @@ export class LaunchProcess {
                 };
 
                 versionData = await resolveInheritance(versionData);
-                console.log(`[Launch] Final Version Data | Client URL: ${versionData.downloads?.client?.url ? 'Yes' : 'No'} | Libs: ${versionData.libraries?.length}`);
 
                 // Reuse shared folders
                 const librariesDir = path.join(gamePath, 'libraries');
@@ -261,8 +239,6 @@ export class LaunchProcess {
                         });
 
                         console.log(`[Launch] Asset index will be downloaded: ${assetIndexId}`);
-                    } else {
-                        console.log(`[Launch] Asset index exists: ${assetIndexId}`);
                     }
                 }
 
@@ -368,7 +344,6 @@ export class LaunchProcess {
 
                 // 3. Start Downloads
                 if (downloads.length > 0) {
-                    console.log(`[Launch] Downloading ${downloads.length} files...`);
                     event.sender.send('launch:progress', { status: 'Downloading files...', progress: 0, total: downloads.length });
                     this.downloader.addToQueue(downloads);
 
@@ -482,8 +457,6 @@ export class LaunchProcess {
                                     }
                                 });
                             });
-                        } else {
-                            console.log(`[Launch] All assets verified and present`);
                         }
                     } catch (e) {
                         console.error('[Launch] Failed to process asset index:', e);
@@ -522,7 +495,6 @@ export class LaunchProcess {
 
                 if (configJavaPath && configJavaPath !== 'auto') {
                     javaPath = configJavaPath;
-                    console.log(`[Launch] Using custom Java ${requiredJavaVersion}: ${javaPath}`);
                 } else {
                     javaPath = await this.javaManager.ensureJava(requiredJavaVersion, (status, progress) => {
                         event.sender.send('launch:progress', {
@@ -538,15 +510,30 @@ export class LaunchProcess {
                 const maxRam = ConfigManager.getMaxRam();
 
                 // 6. Build Args
+                // Authlib-injector configuration for multiplayer support
+                // These system properties enable skin visibility for ALL players on servers
+                const authlibConfig = [
+                    // Core authlib-injector agent
+                    `-javaagent:${authlibPath}=${AUTH_SERVER_URL}`,
+                    // Enable legacy skin API for older server compatibility
+                    '-Dauthlibinjector.legacySkinPolyfill=enabled',
+                    // Disable signature verification bypass warning (we sign everything)
+                    '-Dauthlibinjector.noShowServerName=true',
+                    // Prefetch skin data for faster loading
+                    '-Dauthlibinjector.profileKey.enabled=true',
+                    // Don't check for authlib-injector updates
+                    '-Dauthlibinjector.noUpdate=true',
+                ];
+
                 const jvmArgs = [
                     `-Xms${minRam}M`,
                     `-Xmx${maxRam}M`,
                     `-Djava.library.path=${nativesDir}`,
                     '-Dminecraft.launcher.brand=whoap',
-                    '-Dminecraft.launcher.version=1.0.0',
+                    '-Dminecraft.launcher.version=2.0.0',
                     '-Dminecraft.client.jar=' + clientJarPath,
-                    // Inject Authlib Agent - MUST come before -cp
-                    `-javaagent:${authlibPath}=${AUTH_SERVER_URL}`,
+                    // Authlib-injector config - MUST come before -cp
+                    ...authlibConfig,
                     '-cp', classpath,
                     versionData.mainClass,
                     '--username', authData.name,
@@ -555,23 +542,12 @@ export class LaunchProcess {
                     '--assetsDir', assetsDir,
                     '--assetIndex', versionData.assetIndex?.id || versionData.assets || 'legacy',
                     '--uuid', authData.uuid,
-                    // Pass the Authlib API root as the accessToken source? No, standard MC doesn't use it this way.
-                    // But authlib-injector wraps requests.
+                    // Access token for server authentication
                     '--accessToken', authData.token || '0',
                     '--userType', 'mojang',
                     '--versionType', versionData.type || 'release'
                 ];
 
-                console.log(`[Launch] =======================================`);
-                console.log(`[Launch] Game Launch Configuration:`);
-                console.log(`[Launch] - Instance: ${instanceId} (${versionId})`);
-                console.log(`[Launch] - Player: ${authData.name} (${authData.uuid})`);
-                console.log(`[Launch] - Authlib Server: ${AUTH_SERVER_URL}`);
-                console.log(`[Launch] - Authlib Agent: ${authlibPath}`);
-                console.log(`[Launch] - RAM: ${minRam}MB - ${maxRam}MB`);
-                console.log(`[Launch] =======================================`);
-
-                // Get launch behavior settings
                 const launchBehavior = ConfigManager.getLaunchBehavior();
                 const showConsole = ConfigManager.getShowConsoleOnLaunch();
 
@@ -633,8 +609,6 @@ export class LaunchProcess {
                 });
 
                 gameProcess.on('close', (code) => {
-                    console.log(`Game process exited with code ${code}`);
-
                     if (code !== 0) {
                         console.log("Game crashed! Analyzing...");
                         import('./CrashAnalyzer').then(({ CrashAnalyzer }) => {
