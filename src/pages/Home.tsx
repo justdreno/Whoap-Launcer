@@ -9,6 +9,7 @@ import heroBg from '../assets/background.png';
 import loginBg from '../assets/login_bg.png';
 import { useToast } from '../context/ToastContext';
 import { UserAvatar } from '../components/UserAvatar';
+import { CreateInstanceModal } from '../components/CreateInstanceModal';
 
 interface HomeProps {
     user: {
@@ -22,6 +23,7 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
     const [instances, setInstances] = useState<Instance[]>([]);
     const [selectedInstance, setSelectedInstance] = useState<Instance | null>(null);
     const [showInstanceDropdown, setShowInstanceDropdown] = useState(false);
+    const [showCreateModal, setShowCreateModal] = useState(false);
     const { showToast } = useToast();
 
     // Launch State
@@ -65,6 +67,14 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
         await InstanceApi.toggleFavorite(inst.id);
         const list = await InstanceApi.list();
         setInstances(list);
+    };
+
+    const handleCreated = async () => {
+        const list = await InstanceApi.list();
+        setInstances(list);
+        if (list.length > 0) {
+            setSelectedInstance(list[0]);
+        }
     };
 
     const handleLaunch = async () => {
@@ -246,13 +256,17 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
                         <button
                             className={`${styles.playBtn} ${isLaunching ? styles.launching : ''}`}
                             onClick={async () => {
+                                if (instances.length === 0) {
+                                    setShowCreateModal(true);
+                                    return;
+                                }
                                 console.log('Launch button clicked, selectedInstance:', selectedInstance);
                                 if (selectedInstance) {
                                     await InstanceApi.updateLastPlayed(selectedInstance.id);
                                     handleLaunch();
                                 }
                             }}
-                            disabled={isLaunching || !selectedInstance}
+                            disabled={isLaunching || (!selectedInstance && instances.length > 0)}
                         >
                             {isLaunching ? (
                                 <div className={styles.launchContent}>
@@ -270,7 +284,7 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
                             ) : (
                                 <>
                                     <Rocket size={20} style={{ marginRight: 8 }} />
-                                    {selectedInstance ? 'LAUNCH' : 'SELECT PROFILE'}
+                                    {instances.length === 0 ? 'CREATE PROFILE' : selectedInstance ? 'LAUNCH' : 'SELECT PROFILE'}
                                 </>
                             )}
                         </button>
@@ -406,6 +420,16 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
                     {instances.length === 0 && <div style={{ color: '#666' }}>No profiles yet.</div>}
                 </div>
             </div>
-        </div>
+
+
+            {
+                showCreateModal && (
+                    <CreateInstanceModal
+                        onClose={() => setShowCreateModal(false)}
+                        onCreated={handleCreated}
+                    />
+                )
+            }
+        </div >
     );
 };

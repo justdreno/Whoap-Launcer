@@ -22,6 +22,7 @@ import {
 import { VersionScannerModal } from '../components/VersionScannerModal';
 import { AccountManager } from '../utils/AccountManager';
 import { CloudManager } from '../utils/CloudManager';
+import { useToast } from '../context/ToastContext';
 
 interface JavaPaths {
     [version: string]: string;
@@ -45,6 +46,7 @@ export const Settings = () => {
     const [saving, setSaving] = useState(false);
     const [showResetModal, setShowResetModal] = useState(false);
     const [showVersionScanner, setShowVersionScanner] = useState(false);
+    const { showToast } = useToast();
 
     // Update states
     const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'>('idle');
@@ -118,8 +120,35 @@ export const Settings = () => {
         await window.ipcRenderer.invoke('app:reset', mode);
     };
 
-    const handleVersionImport = (versions: any[]) => {
-        console.log('Imported versions:', versions);
+    // Removed broken import and re-declared component here in previous invalid edit.
+    // Restoring correct flow.
+
+    const handleVersionImport = async (versions: any[]) => {
+        if (versions.length === 0) return;
+
+        showToast(`Importing ${versions.length} versions...`, 'info');
+        try {
+            const versionIds = versions.map(v => v.id);
+            const result = await window.ipcRenderer.invoke('instance:import-external', versionIds);
+
+            if (result.success) {
+                const successCount = result.results.filter((r: any) => r.success).length;
+                const failCount = result.results.length - successCount;
+
+                if (failCount === 0) {
+                    showToast(`Successfully imported ${successCount} versions!`, 'success');
+                } else if (successCount > 0) {
+                    showToast(`Imported ${successCount} versions (${failCount} failed)`, 'warning');
+                } else {
+                    showToast('Failed to import versions.', 'error');
+                }
+            } else {
+                showToast(result.error || 'Import failed', 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            showToast('An error occurred during import', 'error');
+        }
     };
 
     const handleSelectJava = async (version: string) => {

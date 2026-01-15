@@ -38,6 +38,10 @@
 }
 
 .toast.info {
+    border-left: 4px solid #3b82f6;
+}
+
+.toast.warning {
     border-left: 4px solid #ffaa00;
 }
 
@@ -56,6 +60,10 @@
 }
 
 .info .icon {
+    color: #3b82f6;
+}
+
+.warning .icon {
     color: #ffaa00;
 }
 

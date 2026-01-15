@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 import styles from './Toast.module.css';
 
-export type ToastType = 'success' | 'error' | 'info';
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 interface Toast {
     id: string;
@@ -52,6 +52,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                             {toast.type === 'success' && <CheckCircle size={18} />}
                             {toast.type === 'error' && <AlertCircle size={18} />}
                             {toast.type === 'info' && <Info size={18} />}
+                            {toast.type === 'warning' && <AlertTriangle size={18} />}
                         </div>
                         <span className={styles.message}>{toast.message}</span>
                         <button className={styles.closeBtn} onClick={() => removeToast(toast.id)}>

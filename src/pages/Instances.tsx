@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../components/PageHeader';
-import { Settings, RefreshCw } from 'lucide-react';
+import { Settings, RefreshCw, FolderOpen } from 'lucide-react';
 import { Instance, InstanceApi } from '../api/instances';
 import { CreateInstanceModal } from '../components/CreateInstanceModal';
 import { InstanceSettingsModal } from '../components/InstanceSettingsModal';
@@ -116,9 +116,9 @@ export const Instances: React.FC<InstancesProps> = ({ onSelectInstance }) => {
                     ))
                 ) : instances.length === 0 ? (
                     <div className={styles.emptyState}>
-                        <div className={styles.emptyIcon}>📂</div>
+                        <div className={styles.emptyIcon}><FolderOpen size={64} color="#666" /></div>
                         <h3>No profiles found</h3>
-                        <p>Create a new profile to start playing Minecraft.</p>
+                        <p>Create a new profile or import one to start playing.</p>
                         <button className={styles.createBtnBig} onClick={() => setShowCreateModal(true)}>
                             Create Profile
                         </button>
