@@ -18,6 +18,7 @@ interface ProfileProps {
         name: string;
         uuid: string;
         token: string;
+        type: 'microsoft' | 'offline' | 'whoap';
     };
 }
 
@@ -44,13 +45,22 @@ export const Profile: React.FC<ProfileProps> = ({ user }) => {
                     canvas: canvasRef.current,
                     width: 280,
                     height: 380,
-                    skin: skinUrl,
                 });
+
                 viewerRef.current.animation = new WalkingAnimation();
                 viewerRef.current.autoRotate = true;
                 viewerRef.current.autoRotateSpeed = 0.8;
 
                 await Promise.all([loadCapeFromStorage(), loadSkinFromStorage()]);
+
+                // Load both onto the viewer and wait
+                const loadPromises: Promise<any>[] = [];
+                loadPromises.push(viewerRef.current.loadSkin(skinUrl, { model: isSlim ? 'slim' : 'default' }));
+                if (capeUrl) {
+                    loadPromises.push(viewerRef.current.loadCape(capeUrl));
+                }
+
+                await Promise.all(loadPromises);
                 setIsLoading(false);
             }
         };
@@ -64,7 +74,6 @@ export const Profile: React.FC<ProfileProps> = ({ user }) => {
         };
     }, []);
 
-    useEffect(() => { loadPlaytime(); }, []);
     useEffect(() => { loadPlaytime(); }, []);
 
     // Real-time Badges Subscription
@@ -146,6 +155,10 @@ export const Profile: React.FC<ProfileProps> = ({ user }) => {
     };
 
     const handleSkinUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (user.type !== 'whoap') {
+            showToast('Only Whoap accounts can upload skins', 'warning');
+            return;
+        }
         const file = e.target.files?.[0];
         if (!file) return;
         if (!file.name.endsWith('.png')) { showToast('Only .png files allowed', 'error'); return; }
@@ -163,6 +176,10 @@ export const Profile: React.FC<ProfileProps> = ({ user }) => {
     };
 
     const handleCapeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (user.type !== 'whoap') {
+            showToast('Only Whoap accounts can upload capes', 'warning');
+            return;
+        }
         const file = e.target.files?.[0];
         if (!file) return;
         if (!file.name.endsWith('.png')) { showToast('Only .png files allowed', 'error'); return; }
@@ -180,11 +197,13 @@ export const Profile: React.FC<ProfileProps> = ({ user }) => {
     };
 
     const handleDeleteSkin = () => {
+        if (user.type !== 'whoap') return;
         setSkinUrl(`https://mc-heads.net/skin/${user.name}`);
         showToast('Skin reset to default', 'info');
     };
 
     const handleDeleteCape = () => {
+        if (user.type !== 'whoap') return;
         setCapeUrl(null);
         if (viewerRef.current) viewerRef.current.loadCape(null);
         showToast('Cape removed', 'info');
@@ -276,25 +295,31 @@ export const Profile: React.FC<ProfileProps> = ({ user }) => {
                         <div className={styles.uploadRow}>
                             <div className={styles.uploadLabel}>Skin</div>
                             <div className={styles.uploadControls}>
-                                <label className={`${styles.chooseBtn} ${isUploading ? styles.disabled : ''}`}>
+                                <label className={`${styles.chooseBtn} ${isUploading || user.type !== 'whoap' ? styles.disabled : ''}`} title={user.type !== 'whoap' ? 'Whoap account required' : ''}>
                                     {isUploading ? 'Uploading...' : 'Choose Skin'}
-                                    <input type="file" accept=".png" onChange={handleSkinUpload} hidden disabled={isUploading} />
+                                    <input type="file" accept=".png" onChange={handleSkinUpload} hidden disabled={isUploading || user.type !== 'whoap'} />
                                 </label>
-                                <button className={styles.deleteBtn} onClick={handleDeleteSkin} disabled={isUploading}>
+                                <button className={styles.deleteBtn} onClick={handleDeleteSkin} disabled={isUploading || user.type !== 'whoap'}>
                                     <Trash2 size={14} />
                                 </button>
                             </div>
                         </div>
 
+                        {user.type !== 'whoap' && (
+                            <div className={styles.accountNotice}>
+                                <Shield size={12} /> Whoap account required for custom skins/capes
+                            </div>
+                        )}
+
                         {/* Cape Upload */}
                         <div className={styles.uploadRow}>
                             <div className={styles.uploadLabel}>Cape</div>
                             <div className={styles.uploadControls}>
-                                <label className={styles.chooseBtn}>
+                                <label className={`${styles.chooseBtn} ${user.type !== 'whoap' ? styles.disabled : ''}`} title={user.type !== 'whoap' ? 'Whoap account required' : ''}>
                                     Choose Cape
-                                    <input type="file" accept=".png" onChange={handleCapeUpload} hidden />
+                                    <input type="file" accept=".png" onChange={handleCapeUpload} hidden disabled={user.type !== 'whoap'} />
                                 </label>
-                                <button className={styles.deleteBtn} onClick={handleDeleteCape}>
+                                <button className={styles.deleteBtn} onClick={handleDeleteCape} disabled={user.type !== 'whoap'}>
                                     <Trash2 size={14} />
                                 </button>
                             </div>
@@ -320,15 +345,9 @@ export const Profile: React.FC<ProfileProps> = ({ user }) => {
                 <div className={styles.previewPanel}>
                     <div className={styles.canvasContainer}>
                         {isLoading && (
-                            <div style={{
-                                position: 'absolute',
-                                zIndex: 10,
-                                top: '50%',
-                                left: '50%',
-                                transform: 'translate(-50%, -50%)',
-                                color: '#888'
-                            }}>
-                                Loading...
+                            <div className={styles.loadingOverlay}>
+                                <div className={styles.spinner}></div>
+                                <span style={{ color: '#888', fontSize: '12px' }}>Loading 3D Model...</span>
                             </div>
                         )}
                         <canvas ref={canvasRef} className={styles.skinCanvas} style={{ opacity: isLoading ? 0.3 : 1 }} />
