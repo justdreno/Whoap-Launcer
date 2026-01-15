@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../context/ConfirmContext';
 import styles from './InstanceMods.module.css';
-import { ChevronLeft, Search, Download, Trash2, WifiOff, Lock } from 'lucide-react';
+import { ChevronLeft, Search, Download, Trash2, WifiOff, Lock, Plus } from 'lucide-react';
 import { Skeleton } from '../components/Skeleton';
 import { ModVersionSelector } from '../components/ModVersionSelector';
 
@@ -144,6 +144,14 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
         const mod = versionSelectorMod;
         if (!mod) return;
 
+        const shouldInstall = await confirm(
+            'Install Mod?',
+            `Do you want to install ${mod.title} (${file.filename})?`,
+            { confirmLabel: 'Install', isDanger: false }
+        );
+
+        if (!shouldInstall) return;
+
         setVersionSelectorMod(null);
         setInstallingId(mod.id);
         setDownloadProgress(0);
@@ -158,6 +166,24 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
         } finally {
             setInstallingId(null);
             setDownloadProgress(0);
+        }
+    };
+
+    const handleAddMods = async () => {
+        setLoading(true);
+        try {
+            const result = await window.ipcRenderer.invoke('mods:add', instanceId);
+            if (result.success) {
+                showToast("Mods added successfully.", "success");
+                loadInstalledMods();
+            } else if (result.error) {
+                showToast(`Failed to add mods: ${result.error}`, "error");
+            }
+        } catch (e) {
+            console.error(e);
+            showToast("Failed to add mods.", "error");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -243,6 +269,10 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline
                         value={installedSearchQuery}
                         onChange={(e) => setInstalledSearchQuery(e.target.value)}
                     />
+                    <button className={styles.addModBtn} onClick={handleAddMods} title="Add Local Mods">
+                        <Plus size={20} />
+                        <span>Add Mods</span>
+                    </button>
                 </div>
             )}
 
