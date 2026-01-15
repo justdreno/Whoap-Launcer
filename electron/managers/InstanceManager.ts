@@ -21,13 +21,21 @@ export interface Instance {
 }
 
 export class InstanceManager {
+    private static instance: InstanceManager;
     private instancesPath: string;
 
-    constructor() {
+    private constructor() {
         this.instancesPath = ConfigManager.getInstancesPath();
         console.log("InstanceManager initialized. Path:", this.instancesPath);
         this.ensureInstancesDirectory();
         this.registerListeners();
+    }
+
+    public static getInstance(): InstanceManager {
+        if (!InstanceManager.instance) {
+            InstanceManager.instance = new InstanceManager();
+        }
+        return InstanceManager.instance;
     }
     // ... (rest of class remains, skipping to createInstance modification)
 

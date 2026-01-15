@@ -50,32 +50,32 @@ export class ScreenshotManager {
 
     private async listAllScreenshots(): Promise<Screenshot[]> {
         const screenshots: Screenshot[] = [];
-        const instanceManager = new InstanceManager();
-        
+        const instanceManager = InstanceManager.getInstance();
+
         try {
             // Get all instances
             const instances = await instanceManager['getInstances']();
-            
+
             // Scan each instance for screenshots
             for (const instance of instances) {
                 const instancePath = this.resolveInstancePath(instance.id);
                 if (!instancePath) continue;
-                
+
                 const screenshotsPath = path.join(instancePath, 'screenshots');
-                
+
                 if (existsSync(screenshotsPath)) {
                     try {
                         const files = await fs.readdir(screenshotsPath);
-                        
+
                         for (const file of files) {
                             // Only include image files
                             if (!/\.(png|jpg|jpeg|gif|bmp)$/i.test(file)) continue;
-                            
+
                             const filePath = path.join(screenshotsPath, file);
-                            
+
                             try {
                                 const stats = statSync(filePath);
-                                
+
                                 screenshots.push({
                                     id: `${instance.id}:${file}`,
                                     filename: file,
@@ -96,32 +96,32 @@ export class ScreenshotManager {
                     }
                 }
             }
-            
+
             // Sort by date (newest first)
             screenshots.sort((a, b) => b.date - a.date);
-            
+
         } catch (err) {
             console.error('Failed to list screenshots:', err);
         }
-        
+
         return screenshots;
     }
 
     private resolveInstancePath(instanceId: string): string | null {
         const instancesPath = ConfigManager.getInstancesPath();
-        
+
         // 1. Check local instances
         let p = path.join(instancesPath, instanceId);
         if (existsSync(p)) {
             return p;
         }
-        
+
         // 2. Check external versions (.minecraft/versions)
         p = path.join(ConfigManager.getGamePath(), 'versions', instanceId);
         if (existsSync(p)) {
             return p;
         }
-        
+
         return null;
     }
 
@@ -130,7 +130,7 @@ export class ScreenshotManager {
             if (!existsSync(screenshotPath)) {
                 return { success: false, error: 'Screenshot not found' };
             }
-            
+
             await fs.unlink(screenshotPath);
             return { success: true };
         } catch (err) {
@@ -144,7 +144,7 @@ export class ScreenshotManager {
             if (!existsSync(screenshotPath)) {
                 return { success: false, error: 'Screenshot not found' };
             }
-            
+
             // Open the folder containing the screenshot
             const folder = path.dirname(screenshotPath);
             await shell.openPath(folder);
@@ -160,7 +160,7 @@ export class ScreenshotManager {
             if (!existsSync(screenshotPath)) {
                 return { success: false, error: 'Screenshot not found' };
             }
-            
+
             const image = nativeImage.createFromPath(screenshotPath);
             clipboard.writeImage(image);
             return { success: true };
@@ -175,19 +175,19 @@ export class ScreenshotManager {
             if (!existsSync(screenshotPath)) {
                 return { success: false, error: 'Screenshot not found' };
             }
-            
+
             const filename = path.basename(screenshotPath);
-            
+
             const { filePath } = await dialog.showSaveDialog({
                 title: 'Export Screenshot',
                 defaultPath: filename,
                 filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }]
             });
-            
+
             if (!filePath) {
                 return { success: false, canceled: true };
             }
-            
+
             await fs.copyFile(screenshotPath, filePath);
             return { success: true, filePath };
         } catch (err) {
@@ -201,17 +201,17 @@ export class ScreenshotManager {
             if (!existsSync(screenshotPath)) {
                 return { success: false, error: 'Screenshot not found' };
             }
-            
+
             // Read the screenshot file
             const fileBuffer = await fs.readFile(screenshotPath);
             const filename = path.basename(screenshotPath);
             const timestamp = Date.now();
             const uniqueFilename = `${userId}/${timestamp}_${filename}`;
-            
+
             // This will be handled by the frontend with Supabase client
             // Return the buffer as base64 for frontend to upload
             const base64Data = fileBuffer.toString('base64');
-            
+
             return {
                 success: true,
                 publicUrl: base64Data // Frontend will handle actual upload

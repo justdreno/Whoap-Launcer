@@ -90,7 +90,7 @@ app.whenReady().then(() => {
     new ConfigManager(); // Init first
     new AuthManager();
     new SkinServerManager();
-    new InstanceManager();
+    InstanceManager.getInstance();
     new VersionManager();
     new LaunchProcess();
     new LogWindowManager(); // Init listeners
