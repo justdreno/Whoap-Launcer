@@ -17,6 +17,7 @@ export interface Instance {
     isFavorite?: boolean;
     isImported?: boolean;
     launchVersionId?: string; // The actual ID to launch (e.g. fabric-loader-x.x.x-1.20.1)
+    useExternalPath?: boolean; // If true, launch using the original version folder as gameDir
 }
 
 export class InstanceManager {
@@ -514,7 +515,12 @@ export class InstanceManager {
         }
 
         // Recursively copy folder
-        await this.copyDirectory(sourcePath, destPath);
+        try {
+            await this.copyDirectory(sourcePath, destPath);
+        } catch (e) {
+            console.error(`Duplicate failed: ${e}`);
+            throw e;
+        }
 
         // Update or Create instance.json
         const configPath = path.join(destPath, 'instance.json');
@@ -577,6 +583,8 @@ export class InstanceManager {
             }
         }
     }
+
+
 
     async exportInstance(instanceId: string) {
         const instancePath = this.resolveInstancePath(instanceId);
@@ -693,97 +701,69 @@ export class InstanceManager {
         const total = versionIds.length;
         let current = 0;
 
-        for (const id of versionIds) {
-            current++;
-            const progress = (current / total) * 100;
-            event.sender.send('instance:import-progress', {
-                status: `Importing ${id} (${current}/${total})...`,
-                progress
-            });
+        // Parallel import with concurrency limit
+        const limit = 5; // Increased limit because we are just writing small files now
+        const chunks = [];
+        for (let i = 0; i < versionIds.length; i += limit) {
+            chunks.push(versionIds.slice(i, i + limit));
+        }
 
-            try {
-                const sourcePath = path.join(versionsPath, id);
-                if (!existsSync(sourcePath)) {
-                    results.push({ success: false, id, error: 'Source version not found' });
-                    continue;
+        for (const chunk of chunks) {
+            await Promise.all(chunk.map(async (id) => {
+                try {
+                    const sourcePath = path.join(versionsPath, id);
+                    if (!existsSync(sourcePath)) {
+                        results.push({ success: false, id, error: 'Source version not found' });
+                        return;
+                    }
+
+                    const destPath = path.join(this.instancesPath, id);
+                    if (existsSync(destPath)) {
+                        results.push({ success: false, id, error: 'Instance already exists' });
+                        return;
+                    }
+
+                    // DO NOT COPY - Just create the instance folder and config
+                    await fs.mkdir(destPath, { recursive: true });
+
+                    // Create instance.json
+                    let version = 'unknown';
+                    let loader = 'vanilla';
+
+                    const jsonPath = path.join(sourcePath, `${id}.json`);
+                    if (existsSync(jsonPath)) {
+                        version = this.extractVersion(jsonPath, id);
+                        loader = this.detectLoader(jsonPath, id);
+                    }
+
+                    const data: Instance = {
+                        id: id,
+                        name: id,
+                        version: version,
+                        loader: loader as any,
+                        created: Date.now(),
+                        lastPlayed: 0,
+                        type: 'imported',
+                        isImported: true,
+                        launchVersionId: id,
+                        useExternalPath: true // This tells the launcher to use the sourcePath as gameDir
+                    };
+
+                    await fs.writeFile(path.join(destPath, 'instance.json'), JSON.stringify(data, null, 4));
+                    results.push({ success: true, id });
+
+                } catch (e) {
+                    console.error(`Failed to import ${id}`, e);
+                    results.push({ success: false, id, error: String(e) });
+                } finally {
+                    current++;
+                    const progress = (current / total) * 100;
+                    event.sender.send('instance:import-progress', {
+                        status: `Imported ${current}/${total} versions...`,
+                        progress
+                    });
                 }
-
-                // Check if already exists in instances
-                const destPath = path.join(this.instancesPath, id);
-                if (existsSync(destPath)) {
-                    // Already exists, just ensure it has instance.json
-                    // If it was previously auto-scanned, it might not exist here physically if we relied on external
-                    // But if we are "importing", we should probably create a symlink or a copy?
-                    // User wants "Selected ones". Let's create a proxy entry in instances folder.
-                    // Actually, if we just want it to show up, we can create a folder in instances with JUST instance.json
-                    // pointing to the version?
-                    // Or we can copy the version. 
-                    // Let's go with creating an instance wrapper that points to it, OR just copying it.
-                    // Copying is safer for "Import".
-
-                    // Actually, if we just create the instance.json in the instances folder, it will show up.
-                    // But we don't need to duplicate the jar.
-                    // However, standard flow is: unique folder per instance.
-
-                    // Strategy:
-                    // 1. Create folder in instances/ID
-                    // 2. Create instance.json
-                    // 3. Do NOT copy big files if possible, but for robust "Import", maybe copy?
-                    // Let's just Create Config Entry.
-                    // But wait, Logic for launching uses absolute paths. 
-                    // If instance.json says "launchVersionId: ID", and that ID is installed in external versions, 
-                    // the launcher might find it IF we configured it to look there.
-
-                    // Simpler approach for "Import": COPY the version folder to instances/ID.
-                    // This ensures it's isolated.
-
-                    // But if user has 500MB mods...
-
-                    // Let's try: Create an empty folder with instance.json that references the external version ID.
-                    // The Launcher Manager needs to know how to launch it.
-
-                    // REVISIT: The user wants to "Import". 
-                    // Let's Copy. It's cleaner and "Import" implies bringing it in.
-                }
-
-                // Copy strategy
-                // Dest path
-                if (existsSync(destPath)) {
-                    results.push({ success: false, id, error: 'Instance already exists' });
-                    continue;
-                }
-
-                await this.copyDirectory(sourcePath, destPath);
-
-                // Create instance.json
-                let version = 'unknown';
-                let loader = 'vanilla';
-
-                const jsonPath = path.join(destPath, `${id}.json`);
-                if (existsSync(jsonPath)) {
-                    version = this.extractVersion(jsonPath, id);
-                    loader = this.detectLoader(jsonPath, id);
-                }
-
-                const data: Instance = {
-                    id: id,
-                    name: id,
-                    version: version,
-                    loader: loader as any,
-                    created: Date.now(),
-                    lastPlayed: 0,
-                    type: 'imported', // Mark as imported
-                    isImported: true,
-                    launchVersionId: id // Important: Point to itself
-                };
-
-                await fs.writeFile(path.join(destPath, 'instance.json'), JSON.stringify(data, null, 4));
-                results.push({ success: true, id });
-
-            } catch (e) {
-                console.error(`Failed to import ${id}`, e);
-                results.push({ success: false, id, error: String(e) });
-            }
+            }));
         }
 
         return { success: true, results };

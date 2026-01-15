@@ -67,7 +67,7 @@ export const Instances: React.FC<InstancesProps> = ({ onSelectInstance }) => {
         loadInstances();
 
         const handleProgress = (_: any, data: any) => {
-            setProcessing(prev => prev ? { ...prev, subMessage: data.status, progress: data.progress } : { message: 'Importing...', subMessage: data.status, progress: data.progress });
+            setProcessing(prev => prev ? { ...prev, subMessage: data.status, progress: data.progress } : null);
         };
         window.ipcRenderer.on('instance:import-progress', handleProgress);
         return () => {

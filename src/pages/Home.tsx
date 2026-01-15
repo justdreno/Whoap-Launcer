@@ -294,20 +294,20 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
                             )}
                         </button>
                     </div>
-                    {activeInstance ? (
-                        <UserAvatar
-                            username={user.name}
-                            uuid={user.uuid}
-                            accountType={(user as any).type}
-                            variant="body"
-                            className={styles.heroImage}
-                        />
-                    ) : (
-                        <div className={styles.emptyProfileIcon}>
-                            <Layers size={80} strokeWidth={1.5} />
-                        </div>
-                    )}
                 </div>
+                {activeInstance ? (
+                    <UserAvatar
+                        username={user.name}
+                        uuid={user.uuid}
+                        accountType={(user as any).type}
+                        variant="body"
+                        className={styles.heroImage}
+                    />
+                ) : (
+                    <div className={styles.emptyProfileIcon}>
+                        <Layers size={80} strokeWidth={1.5} />
+                    </div>
+                )}
             </div>
 
             {/* Widgets Section */}

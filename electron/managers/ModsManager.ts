@@ -135,15 +135,32 @@ export class ModsManager {
     }
 
     private getModsPath(instanceId: string): string {
-        // 1. Check if it's a created instance (in instances folder)
         const instancesPath = ConfigManager.getInstancesPath();
         const instancePath = path.join(instancesPath, instanceId);
+        const configPath = path.join(instancePath, 'instance.json');
 
+        // 1. Check for referenced imports (no-copy)
+        if (existsSync(configPath)) {
+            try {
+                const data = JSON.parse(readdirSync(instancePath).includes('instance.json')
+                    ? require('fs').readFileSync(configPath, 'utf8')
+                    : '{}');
+
+                if (data.useExternalPath) {
+                    const gamePath = ConfigManager.getGamePath();
+                    return path.join(gamePath, 'versions', instanceId, 'mods');
+                }
+            } catch (e) {
+                console.error(`[ModsManager] Failed to read instance.json for ${instanceId}:`, e);
+            }
+        }
+
+        // 2. Default: Look in the instance's own folder
         if (existsSync(instancePath)) {
             return path.join(instancePath, 'mods');
         }
 
-        // 2. Fallback to imported/version instance (in gamedata/versions)
+        // 3. Last resort: standard versions folder (legacy/fallback)
         const gamePath = ConfigManager.getGamePath();
         return path.join(gamePath, 'versions', instanceId, 'mods');
     }

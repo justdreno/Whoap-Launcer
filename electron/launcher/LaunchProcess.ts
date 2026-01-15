@@ -66,7 +66,23 @@ export class LaunchProcess {
             const instancesRoot = ConfigManager.getInstancesPath();
 
             // Determine if this is a native instance or imported
-            let isNativeInstance = fs.existsSync(path.join(instancesRoot, instanceId));
+            const instanceRootPath = path.join(instancesRoot, instanceId);
+            let isNativeInstance = fs.existsSync(instanceRootPath);
+            let useExternalPath = false;
+
+            if (isNativeInstance) {
+                const configPath = path.join(instanceRootPath, 'instance.json');
+                if (fs.existsSync(configPath)) {
+                    try {
+                        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                        if (config.useExternalPath) {
+                            useExternalPath = true;
+                        }
+                    } catch (e) {
+                        console.error("[Launch] Failed to read instance config", e);
+                    }
+                }
+            }
 
             // For TLauncher/custom versions, check if the version folder has mods/configs
             // If so, use the version folder as gameDir (TLauncher's "version isolation" behavior)
@@ -76,15 +92,18 @@ export class LaunchProcess {
             const versionHasCustomContent = versionHasMods || versionHasConfig;
 
             // Determine game directory:
+            // - Native Instance (useExternalPath: true) -> Use version folder
             // - Native Instance -> Isolated in instances/<id>
             // - Imported Version WITH mods/config -> Use version folder (TLauncher style)
             // - Imported Version without custom content -> Use shared .minecraft
-            let instancePath = isNativeInstance
-                ? path.join(instancesRoot, instanceId)
-                : (versionHasCustomContent ? versionFolder : gamePath);
+            let instancePath = (isNativeInstance && !useExternalPath)
+                ? instanceRootPath
+                : (useExternalPath || versionHasCustomContent ? versionFolder : gamePath);
 
-            if (versionHasCustomContent && !isNativeInstance) {
+            if ((useExternalPath || versionHasCustomContent) && !isNativeInstance) {
                 console.log(`[Launch] Detected TLauncher-style version isolation for ${versionId}`);
+            } else if (useExternalPath) {
+                console.log(`[Launch] Using external reference path for ${instanceId}: ${versionFolder}`);
             }
 
             try {
@@ -218,12 +237,12 @@ export class LaunchProcess {
                 const assetIndexId = versionData.assetIndex?.id || versionData.assets || 'legacy';
                 const assetIndexUrl = versionData.assetIndex?.url;
                 const assetIndexPath = path.join(assetsDir, 'indexes', `${assetIndexId}.json`);
-                
+
                 if (assetIndexUrl) {
                     // Ensure indexes directory exists
                     const indexesDir = path.join(assetsDir, 'indexes');
                     if (!fs.existsSync(indexesDir)) fs.mkdirSync(indexesDir, { recursive: true });
-                    
+
                     // Download asset index if missing or check existing
                     if (!fs.existsSync(assetIndexPath)) {
                         downloads.push({
@@ -233,7 +252,7 @@ export class LaunchProcess {
                             size: versionData.assetIndex?.size,
                             priority: 15 // High priority for index
                         });
-                        
+
                         console.log(`[Launch] Asset index will be downloaded: ${assetIndexId}`);
                     } else {
                         console.log(`[Launch] Asset index exists: ${assetIndexId}`);
@@ -367,12 +386,12 @@ export class LaunchProcess {
                 // 3.5 Download Missing/Corrupt Assets
                 if (assetIndexUrl && fs.existsSync(assetIndexPath)) {
                     event.sender.send('launch:progress', { status: 'Checking assets...', progress: 0, total: 100 });
-                    
+
                     try {
                         const assetIndex = JSON.parse(fs.readFileSync(assetIndexPath, 'utf-8'));
                         const assetDownloads: DownloadTask[] = [];
                         const objectsDir = path.join(assetsDir, 'objects');
-                        
+
                         if (!fs.existsSync(objectsDir)) {
                             fs.mkdirSync(objectsDir, { recursive: true });
                         }
@@ -381,17 +400,17 @@ export class LaunchProcess {
                         const assets = assetIndex.objects || {};
                         const assetKeys = Object.keys(assets);
                         let checkedCount = 0;
-                        
+
                         for (const assetKey of assetKeys) {
                             const asset = assets[assetKey];
                             const hash = asset.hash;
                             const size = asset.size;
-                            
+
                             // Asset path follows Minecraft structure: objects/[first 2 chars of hash]/[hash]
                             const hashPrefix = hash.substring(0, 2);
                             const assetDir = path.join(objectsDir, hashPrefix);
                             const assetPath = path.join(assetDir, hash);
-                            
+
                             // Check if asset exists and verify size
                             let needsDownload = false;
                             if (!fs.existsSync(assetPath)) {
@@ -404,13 +423,13 @@ export class LaunchProcess {
                                     needsDownload = true;
                                 }
                             }
-                            
+
                             if (needsDownload) {
                                 // Ensure subdirectory exists
                                 if (!fs.existsSync(assetDir)) {
                                     fs.mkdirSync(assetDir, { recursive: true });
                                 }
-                                
+
                                 assetDownloads.push({
                                     url: `https://resources.download.minecraft.net/${hashPrefix}/${hash}`,
                                     destination: assetPath,
@@ -419,26 +438,26 @@ export class LaunchProcess {
                                     priority: 5 // Lower priority than libraries
                                 });
                             }
-                            
+
                             checkedCount++;
                             if (checkedCount % 100 === 0) {
-                                event.sender.send('launch:progress', { 
-                                    status: `Checking assets... ${checkedCount}/${assetKeys.length}`, 
-                                    progress: checkedCount, 
-                                    total: assetKeys.length 
+                                event.sender.send('launch:progress', {
+                                    status: `Checking assets... ${checkedCount}/${assetKeys.length}`,
+                                    progress: checkedCount,
+                                    total: assetKeys.length
                                 });
                             }
                         }
-                        
+
                         // Download missing/corrupt assets
                         if (assetDownloads.length > 0) {
                             console.log(`[Launch] Downloading ${assetDownloads.length} missing/corrupt assets...`);
-                            event.sender.send('launch:progress', { 
-                                status: `Downloading ${assetDownloads.length} assets...`, 
-                                progress: 0, 
-                                total: assetDownloads.length 
+                            event.sender.send('launch:progress', {
+                                status: `Downloading ${assetDownloads.length} assets...`,
+                                progress: 0,
+                                total: assetDownloads.length
                             });
-                            
+
                             this.downloader.addToQueue(assetDownloads);
                             await new Promise<void>((resolve, reject) => {
                                 this.downloader.on('done', resolve);
