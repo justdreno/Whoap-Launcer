@@ -24,7 +24,9 @@ export class LaunchProcess {
         ipcMain.handle('game:launch', async (event, instanceId: string, _unusedPath: string, versionId: string, authData: any) => {
             // Register current user with SkinServer so it can serve the correct skin
             if (authData.name && authData.uuid) {
-                SkinServerManager.setCurrentUser(authData.uuid, authData.name);
+                // Pass skin model if available
+                const skinModel = authData.skinModel || 'default';
+                SkinServerManager.setCurrentUser(authData.uuid, authData.name, skinModel);
             }
 
             // Trigger Cloud Sync
@@ -242,11 +244,14 @@ export class LaunchProcess {
                     }
                 }
 
-                // Authlib Injector Logic
+                // Authlib Injector Logic - Updated for better skin support
                 const AUTHLIB_URL = 'https://github.com/yushijinhun/authlib-injector/releases/download/v1.2.7/authlib-injector-1.2.7.jar';
-                // Using local backend-api for now
-                const AUTH_SERVER_URL = 'http://localhost:3000';
+                // Get skin server URL dynamically from the SkinServerManager
+                const skinServerPort = SkinServerManager.getInstance()?.getPort() || 25500;
+                const AUTH_SERVER_URL = `http://127.0.0.1:${skinServerPort}`;
                 const authlibPath = path.join(librariesDir, 'authlib-injector.jar');
+                
+                console.log(`[Launch] Using skin server at ${AUTH_SERVER_URL}`);
 
                 // Only download if missing
                 if (!fs.existsSync(authlibPath)) {
@@ -513,16 +518,24 @@ export class LaunchProcess {
                 // Authlib-injector configuration for multiplayer support
                 // These system properties enable skin visibility for ALL players on servers
                 const authlibConfig = [
-                    // Core authlib-injector agent
+                    // Core authlib-injector agent - CRITICAL: No space after =
                     `-javaagent:${authlibPath}=${AUTH_SERVER_URL}`,
                     // Enable legacy skin API for older server compatibility
                     '-Dauthlibinjector.legacySkinPolyfill=enabled',
+                    // Force skins to always load from our server
+                    '-Dauthlibinjector.side=client',
                     // Disable signature verification bypass warning (we sign everything)
                     '-Dauthlibinjector.noShowServerName=true',
                     // Prefetch skin data for faster loading
                     '-Dauthlibinjector.profileKey.enabled=true',
-                    // Don't check for authlib-injector updates
+                    // Disable authlib-injector update checks
                     '-Dauthlibinjector.noUpdate=true',
+                    // Disable Mojang namespace to prevent fallback to official servers
+                    '-Dauthlibinjector.mojangNamespace=disabled',
+                    // Enable skin prefetch for better performance
+                    '-Dauthlibinjector.skinPreload=true',
+                    // Debug mode - can be disabled in production
+                    '-Dauthlibinjector.debug=false',
                 ];
 
                 const jvmArgs = [

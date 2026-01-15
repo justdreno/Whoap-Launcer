@@ -17,19 +17,34 @@ interface CachedProfile {
     timestamp: number;
 }
 
+// Skin cache to avoid repeated fetches
+interface SkinCacheEntry {
+    data: Buffer;
+    timestamp: number;
+    exists: boolean;
+}
+
 export class SkinServerManager {
     private static instance: SkinServerManager;
-    private static currentUser: { uuid: string; name: string; offlineUuid?: string } | null = null;
+    private static currentUser: { uuid: string; name: string; offlineUuid?: string; skinModel?: 'default' | 'slim' } | null = null;
 
     // Cache for other players' profiles (Whoap users on multiplayer servers)
     private static playerCache: Map<string, CachedProfile> = new Map();
     private static CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
 
+    // Skin/cape data cache
+    private static skinCache: Map<string, SkinCacheEntry> = new Map();
+    private static capeCache: Map<string, SkinCacheEntry> = new Map();
+    private static TEXTURE_CACHE_TTL = 2 * 60 * 1000; // 2 minutes cache
+
     private app_express;
     private server: any;
-    private port = 3000;
+    private port = 25500; // Use non-conflicting port for skin server
     private key: NodeRSA;
     private keyPath: string;
+
+    // Default Steve skin (64x64 PNG) - base64 encoded
+    private static DEFAULT_STEVE_SKIN: Buffer | null = null;
 
     // Supabase configuration for fetching other Whoap users
     private readonly SUPABASE_PROJECT = 'ibtctzkqzezrtcglicjf';
@@ -39,10 +54,11 @@ export class SkinServerManager {
         return SkinServerManager.instance;
     }
 
-    public static setCurrentUser(uuid: string, name: string) {
+    public static setCurrentUser(uuid: string, name: string, skinModel?: 'default' | 'slim') {
         // Calculate offline UUID for this user to support cracked servers
         const offlineUuid = SkinServerManager.getOfflineUuid(name);
-        SkinServerManager.currentUser = { uuid, name, offlineUuid };
+        SkinServerManager.currentUser = { uuid, name, offlineUuid, skinModel: skinModel || 'default' };
+        console.log(`[SkinServer] Current user set: ${name} (UUID: ${uuid}, Offline UUID: ${offlineUuid})`);
     }
 
     public static getCurrentUser() {
@@ -65,6 +81,7 @@ export class SkinServerManager {
             realUuid: realUuid,
             timestamp: Date.now()
         });
+        console.log(`[SkinServer] Registered player: ${name} (UUID: ${uuid}, Real UUID: ${realUuid})`);
     }
 
     // Get cached player or return null
@@ -83,10 +100,13 @@ export class SkinServerManager {
 
         // Store key in app data for persistence across restarts
         const dataPath = app.getPath('userData');
-        this.keyPath = path.join(dataPath, 'skin-server-key-2048.pem');
+        this.keyPath = path.join(dataPath, 'skin-server-key-4096.pem');
 
-        // Load or generate RSA key
+        // Load or generate RSA key (4096 bits for better compatibility)
         this.key = this.loadOrGenerateKey();
+
+        // Load default Steve skin
+        this.loadDefaultSkin();
 
         this.setupRoutes();
         this.start();
@@ -95,9 +115,32 @@ export class SkinServerManager {
         try {
             const testPayload = "eyJ0ZXN0IjoidmFsdWUifQ=="; // base64 of {"test":"value"}
             const signature = this.sign(testPayload);
-            this.key.verify(Buffer.from(testPayload, 'utf-8'), signature, undefined, 'base64');
+            const verified = this.key.verify(Buffer.from(testPayload, 'utf-8'), signature, 'utf8', 'base64');
+            console.log(`[SkinServer] ✓ Self-test ${verified ? 'passed' : 'FAILED'}`);
         } catch (e) {
             console.error(`[SkinServer] ✗ Self-test failed:`, e);
+        }
+    }
+
+    private loadDefaultSkin() {
+        // Try to load default Steve skin from assets
+        try {
+            const assetsPath = app.isPackaged
+                ? path.join(process.resourcesPath, 'assets')
+                : path.join(__dirname, '../../src/assets');
+            
+            const stevePath = path.join(assetsPath, 'steve.png');
+            const whoapSkinPath = path.join(assetsPath, 'whoap-skin.png');
+
+            if (fs.existsSync(whoapSkinPath)) {
+                SkinServerManager.DEFAULT_STEVE_SKIN = fs.readFileSync(whoapSkinPath);
+                console.log('[SkinServer] Loaded Whoap default skin');
+            } else if (fs.existsSync(stevePath)) {
+                SkinServerManager.DEFAULT_STEVE_SKIN = fs.readFileSync(stevePath);
+                console.log('[SkinServer] Loaded Steve default skin');
+            }
+        } catch (e) {
+            console.warn('[SkinServer] Could not load default skin:', e);
         }
     }
 
@@ -106,19 +149,23 @@ export class SkinServerManager {
             if (fs.existsSync(this.keyPath)) {
                 const keyData = fs.readFileSync(this.keyPath, 'utf-8');
                 const key = new NodeRSA(keyData);
+                key.setOptions({ signingScheme: 'pkcs1-sha1' }); // authlib-injector expects SHA1withRSA
+                console.log('[SkinServer] Loaded existing RSA key');
                 return key;
             }
         } catch (err) {
             console.warn('[SkinServer] Failed to load existing key, generating new one:', err);
         }
 
-        // Generate new key with 2048 bits (standard, 4096 might be too big/slow or rejected)
-        const key = new NodeRSA({ b: 2048 });
+        // Generate new key with 4096 bits for better security
+        console.log('[SkinServer] Generating new 4096-bit RSA key...');
+        const key = new NodeRSA({ b: 4096 });
         key.setOptions({ signingScheme: 'pkcs1-sha1' }); // authlib-injector expects SHA1withRSA
 
         // Save for future use
         try {
             fs.writeFileSync(this.keyPath, key.exportKey('private'));
+            console.log('[SkinServer] Saved new RSA key');
         } catch (err) {
             console.error('[SkinServer] Failed to save RSA key:', err);
         }
@@ -128,7 +175,6 @@ export class SkinServerManager {
 
     private getPublicKey(): string {
         // authlib-injector expects the public key in PEM format WITH headers
-        // See: KeyUtils.parseSignaturePublicKey() expects "-----BEGIN PUBLIC KEY-----"
         return this.key.exportKey('public');
     }
 
@@ -138,7 +184,8 @@ export class SkinServerManager {
         return this.key.sign(Buffer.from(data, 'utf-8'), 'base64');
     }
 
-    private getTextureProperties(uuid: string, name: string, skinUuid?: string): any[] {
+    // Generate proper texture payload with metadata
+    private getTextureProperties(uuid: string, name: string, skinUuid?: string, options?: { model?: 'default' | 'slim', hasCape?: boolean }): any[] {
         // Ensure UUID has dashes for the skin URL
         let formattedUuid = uuid;
         if (uuid.length === 32) {
@@ -154,22 +201,34 @@ export class SkinServerManager {
         // Ensure UUID has NO dashes for profileId in payload
         const profileId = uuid.replace(/-/g, '');
 
-        // PROXY APPROACH: Serve from localhost to avoid domain issues
-        const skinUrl = `http://localhost:${this.port}/skins/${formattedSkinUuid}.png`;
-        const capeUrl = `http://localhost:${this.port}/capes/${formattedSkinUuid}.png`;
+        // Use 127.0.0.1 instead of localhost for better compatibility
+        const skinUrl = `http://127.0.0.1:${this.port}/textures/skin/${formattedSkinUuid}`;
+        const capeUrl = `http://127.0.0.1:${this.port}/textures/cape/${formattedSkinUuid}`;
+
+        const skinModel = options?.model || SkinServerManager.currentUser?.skinModel || 'default';
+
+        // Build textures object
+        const textures: any = {
+            SKIN: {
+                url: skinUrl,
+                metadata: {
+                    model: skinModel === 'slim' ? 'slim' : 'default'
+                }
+            }
+        };
+
+        // Only include cape if user has one
+        if (options?.hasCape !== false) {
+            textures.CAPE = {
+                url: capeUrl
+            };
+        }
 
         const texturePayload = {
             timestamp: Date.now(),
             profileId: profileId,
             profileName: name,
-            textures: {
-                SKIN: {
-                    url: skinUrl
-                },
-                CAPE: {
-                    url: capeUrl
-                }
-            }
+            textures: textures
         };
 
         const textureBase64 = Buffer.from(JSON.stringify(texturePayload)).toString('base64');
@@ -196,30 +255,42 @@ export class SkinServerManager {
         return hex.replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5');
     }
 
-    // New method to handle aliased skin payloads
-    private generateAliasedSkinPayload(requestedProfileId: string, realUuidForSkin: string, name: string): any[] {
+    // Method to handle aliased skin payloads
+    private generateAliasedSkinPayload(requestedProfileId: string, realUuidForSkin: string, name: string, options?: { model?: 'default' | 'slim', hasCape?: boolean }): any[] {
         // Ensure UUID has dashes for the skin URL
         let formattedSkinUuid = realUuidForSkin;
         if (realUuidForSkin.length === 32) {
             formattedSkinUuid = realUuidForSkin.replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5');
         }
 
-        // PROXY APPROACH: Serve from localhost to avoid domain issues
-        const skinUrl = `http://localhost:${this.port}/skins/${formattedSkinUuid}.png`;
-        const capeUrl = `http://localhost:${this.port}/capes/${formattedSkinUuid}.png`;
+        const skinModel = options?.model || SkinServerManager.currentUser?.skinModel || 'default';
+
+        // Use 127.0.0.1 instead of localhost for better compatibility
+        const skinUrl = `http://127.0.0.1:${this.port}/textures/skin/${formattedSkinUuid}`;
+        const capeUrl = `http://127.0.0.1:${this.port}/textures/cape/${formattedSkinUuid}`;
+
+        // Build textures object
+        const textures: any = {
+            SKIN: {
+                url: skinUrl,
+                metadata: {
+                    model: skinModel === 'slim' ? 'slim' : 'default'
+                }
+            }
+        };
+
+        // Only include cape if user has one
+        if (options?.hasCape !== false) {
+            textures.CAPE = {
+                url: capeUrl
+            };
+        }
 
         const texturePayload = {
             timestamp: Date.now(),
             profileId: requestedProfileId.replace(/-/g, ''), // Use the requested ID for the payload's profileId
             profileName: name,
-            textures: {
-                SKIN: {
-                    url: skinUrl // Use the real UUID for the skin URL
-                },
-                CAPE: {
-                    url: capeUrl // Use the real UUID for the cape URL
-                }
-            }
+            textures: textures
         };
 
         const textureBase64 = Buffer.from(JSON.stringify(texturePayload)).toString('base64');
@@ -230,6 +301,74 @@ export class SkinServerManager {
             value: textureBase64,
             signature: signature
         }];
+    }
+
+    // Fetch skin from Supabase with caching
+    private async fetchSkinFromSupabase(uuid: string): Promise<{ data: Buffer | null, exists: boolean }> {
+        const cleanUuid = uuid.replace(/-/g, '');
+        const formattedUuid = cleanUuid.replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5');
+
+        // Check cache first
+        const cached = SkinServerManager.skinCache.get(cleanUuid);
+        if (cached && (Date.now() - cached.timestamp) < SkinServerManager.TEXTURE_CACHE_TTL) {
+            return { data: cached.exists ? cached.data : null, exists: cached.exists };
+        }
+
+        return new Promise((resolve) => {
+            const url = `${this.SUPABASE_URL}/storage/v1/object/public/skins/${formattedUuid}.png`;
+            
+            https.get(url, (res) => {
+                if (res.statusCode === 200) {
+                    const chunks: Buffer[] = [];
+                    res.on('data', (chunk) => chunks.push(chunk));
+                    res.on('end', () => {
+                        const data = Buffer.concat(chunks);
+                        SkinServerManager.skinCache.set(cleanUuid, { data, timestamp: Date.now(), exists: true });
+                        resolve({ data, exists: true });
+                    });
+                } else {
+                    SkinServerManager.skinCache.set(cleanUuid, { data: Buffer.alloc(0), timestamp: Date.now(), exists: false });
+                    resolve({ data: null, exists: false });
+                }
+            }).on('error', (err) => {
+                console.error(`[SkinServer] Skin fetch error for ${uuid}:`, err.message);
+                resolve({ data: null, exists: false });
+            });
+        });
+    }
+
+    // Fetch cape from Supabase with caching
+    private async fetchCapeFromSupabase(uuid: string): Promise<{ data: Buffer | null, exists: boolean }> {
+        const cleanUuid = uuid.replace(/-/g, '');
+        const formattedUuid = cleanUuid.replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5');
+
+        // Check cache first
+        const cached = SkinServerManager.capeCache.get(cleanUuid);
+        if (cached && (Date.now() - cached.timestamp) < SkinServerManager.TEXTURE_CACHE_TTL) {
+            return { data: cached.exists ? cached.data : null, exists: cached.exists };
+        }
+
+        return new Promise((resolve) => {
+            const url = `${this.SUPABASE_URL}/storage/v1/object/public/capes/${formattedUuid}.png`;
+            
+            https.get(url, (res) => {
+                if (res.statusCode === 200) {
+                    const chunks: Buffer[] = [];
+                    res.on('data', (chunk) => chunks.push(chunk));
+                    res.on('end', () => {
+                        const data = Buffer.concat(chunks);
+                        SkinServerManager.capeCache.set(cleanUuid, { data, timestamp: Date.now(), exists: true });
+                        resolve({ data, exists: true });
+                    });
+                } else {
+                    SkinServerManager.capeCache.set(cleanUuid, { data: Buffer.alloc(0), timestamp: Date.now(), exists: false });
+                    resolve({ data: null, exists: false });
+                }
+            }).on('error', (err) => {
+                console.error(`[SkinServer] Cape fetch error for ${uuid}:`, err.message);
+                resolve({ data: null, exists: false });
+            });
+        });
     }
 
     // Fetch profile from Mojang API (for premium server support)
@@ -265,7 +404,7 @@ export class SkinServerManager {
 
             https.get(url, {
                 headers: {
-                    'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImliddGN0emtxemV6cnRjZ2xpY2pmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYxMDY2NjUsImV4cCI6MjA1MTY4MjY2NX0.example', // This would need to be the actual anon key
+                    'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImliddGN0emtxemV6cnRjZ2xpY2pmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYxMDY2NjUsImV4cCI6MjA1MTY4MjY2NX0.example',
                     'Content-Type': 'application/json'
                 }
             }, (res) => {
@@ -307,6 +446,7 @@ export class SkinServerManager {
 
         // Request logging middleware
         this.app_express.use((req, res, next) => {
+            console.log(`[SkinServer] ${req.method} ${req.path}`);
             next();
         });
 
@@ -320,7 +460,7 @@ export class SkinServerManager {
                 meta: {
                     serverName: "Whoap Skin Server",
                     implementationName: "whoap-yggdrasil",
-                    implementationVersion: "2.0.0",
+                    implementationVersion: "3.0.0",
                     feature: {
                         // Enable all features for maximum compatibility
                         non_email_login: true,
@@ -332,14 +472,15 @@ export class SkinServerManager {
                     }
                 },
                 skinDomains: [
-                    "localhost",
                     "127.0.0.1",
+                    "localhost",
                     ".localhost",
                     ".supabase.co",
-                    "ibtctzkqzezrtcglicjf.supabase.co",
+                    `${this.SUPABASE_PROJECT}.supabase.co`,
                     ".minecraft.net",
                     "textures.minecraft.net",
                     "mc-heads.net",
+                    ".mc-heads.net",
                     "api.whoap.com",
                     ".whoap.com"
                 ],
@@ -349,6 +490,10 @@ export class SkinServerManager {
         });
 
         // Authlib-injector specific metadata endpoint
+        this.app_express.get('/authlib-injector', (req: Request, res: Response) => {
+            res.redirect('/');
+        });
+
         this.app_express.get('/authlib-injector/yggdrasil', (req: Request, res: Response) => {
             res.redirect('/');
         });
@@ -382,6 +527,7 @@ export class SkinServerManager {
             let username = "Player_" + uuid.substring(0, 5);
             let skinUuid = cleanRequestUuid;
             let isMatch = false;
+            let skinModel: 'default' | 'slim' = 'default';
 
             if (currentUser) {
                 const cleanRealUuid = currentUser.uuid.replace(/-/g, '');
@@ -390,7 +536,9 @@ export class SkinServerManager {
                 if (cleanRequestUuid === cleanRealUuid || cleanRequestUuid === cleanOfflineUuid) {
                     username = currentUser.name;
                     skinUuid = currentUser.uuid;
+                    skinModel = currentUser.skinModel || 'default';
                     isMatch = true;
+                    console.log(`[SkinServer] Matched current user: ${username}`);
                 }
             }
 
@@ -401,13 +549,14 @@ export class SkinServerManager {
                     username = cachedPlayer.name;
                     skinUuid = cachedPlayer.realUuid;
                     isMatch = true;
+                    console.log(`[SkinServer] Matched cached player: ${username}`);
                 }
             }
 
             // Generate properties
             let responseProperties;
             if (isMatch) {
-                responseProperties = this.generateAliasedSkinPayload(cleanRequestUuid, skinUuid, username);
+                responseProperties = this.generateAliasedSkinPayload(cleanRequestUuid, skinUuid, username, { model: skinModel });
             } else {
                 // For unknown players, still provide signed textures (may not have actual skin)
                 responseProperties = this.getTextureProperties(cleanRequestUuid, username);
@@ -420,6 +569,105 @@ export class SkinServerManager {
             };
 
             res.json(response);
+        });
+
+        // ============================================
+        // TEXTURE ENDPOINTS (skin/cape serving) - NEW UNIFIED APPROACH
+        // ============================================
+
+        // Skin Texture Endpoint - Direct serving with fallback
+        this.app_express.get('/textures/skin/:uuid', async (req: Request, res: Response) => {
+            let { uuid } = req.params;
+            uuid = uuid.replace('.png', ''); // Remove .png extension if present
+            
+            console.log(`[SkinServer] Fetching skin for: ${uuid}`);
+
+            // Check if this is the current user
+            const currentUser = SkinServerManager.getCurrentUser();
+            let targetUuid = uuid;
+
+            if (currentUser) {
+                const cleanUuid = uuid.replace(/-/g, '');
+                const cleanRealUuid = currentUser.uuid.replace(/-/g, '');
+                const cleanOfflineUuid = currentUser.offlineUuid?.replace(/-/g, '') || '';
+
+                if (cleanUuid === cleanRealUuid || cleanUuid === cleanOfflineUuid) {
+                    targetUuid = currentUser.uuid;
+                }
+            }
+
+            // Try to fetch from Supabase
+            const result = await this.fetchSkinFromSupabase(targetUuid);
+
+            if (result.exists && result.data) {
+                res.setHeader('Content-Type', 'image/png');
+                res.setHeader('Cache-Control', 'public, max-age=60');
+                res.send(result.data);
+            } else {
+                // Return default Steve skin
+                if (SkinServerManager.DEFAULT_STEVE_SKIN) {
+                    res.setHeader('Content-Type', 'image/png');
+                    res.setHeader('Cache-Control', 'public, max-age=300');
+                    res.send(SkinServerManager.DEFAULT_STEVE_SKIN);
+                } else {
+                    // Fallback to mc-heads
+                    const cleanUuid = targetUuid.replace(/-/g, '');
+                    res.redirect(`https://mc-heads.net/skin/${cleanUuid}`);
+                }
+            }
+        });
+
+        // Cape Texture Endpoint
+        this.app_express.get('/textures/cape/:uuid', async (req: Request, res: Response) => {
+            let { uuid } = req.params;
+            uuid = uuid.replace('.png', ''); // Remove .png extension if present
+
+            console.log(`[SkinServer] Fetching cape for: ${uuid}`);
+
+            // Check if this is the current user
+            const currentUser = SkinServerManager.getCurrentUser();
+            let targetUuid = uuid;
+
+            if (currentUser) {
+                const cleanUuid = uuid.replace(/-/g, '');
+                const cleanRealUuid = currentUser.uuid.replace(/-/g, '');
+                const cleanOfflineUuid = currentUser.offlineUuid?.replace(/-/g, '') || '';
+
+                if (cleanUuid === cleanRealUuid || cleanUuid === cleanOfflineUuid) {
+                    targetUuid = currentUser.uuid;
+                }
+            }
+
+            // Try to fetch from Supabase
+            const result = await this.fetchCapeFromSupabase(targetUuid);
+
+            if (result.exists && result.data) {
+                res.setHeader('Content-Type', 'image/png');
+                res.setHeader('Cache-Control', 'public, max-age=60');
+                res.send(result.data);
+            } else {
+                // No cape - return 404
+                res.status(404).send('Cape not found');
+            }
+        });
+
+        // Legacy skin endpoint (backward compatibility)
+        this.app_express.get('/skins/:filename', async (req: Request, res: Response) => {
+            const { filename } = req.params;
+            const uuid = filename.replace('.png', '');
+            res.redirect(`/textures/skin/${uuid}`);
+        });
+
+        // Legacy cape endpoint (backward compatibility)
+        this.app_express.get('/capes/:filename', async (req: Request, res: Response) => {
+            const { filename } = req.params;
+            const uuid = filename.replace('.png', '');
+            res.redirect(`/textures/cape/${uuid}`);
+        });
+
+        // Legacy texture endpoint (some older clients/servers use this)
+        this.app_express.get('/textures/:hash', (req: Request, res: Response) => {
+            res.redirect(`/textures/skin/${req.params.hash}`);
         });
 
         // ============================================
@@ -529,10 +777,12 @@ export class SkinServerManager {
             const currentUser = SkinServerManager.getCurrentUser();
             let uuid: string;
             let skinUuid: string;
+            let skinModel: 'default' | 'slim' = 'default';
 
             if (currentUser && currentUser.name.toLowerCase() === username.toLowerCase()) {
                 uuid = currentUser.uuid;
                 skinUuid = currentUser.uuid;
+                skinModel = currentUser.skinModel || 'default';
             } else {
                 // For other players, generate offline UUID
                 uuid = SkinServerManager.getOfflineUuid(username);
@@ -546,67 +796,13 @@ export class SkinServerManager {
             }
 
             const cleanUuid = uuid.replace(/-/g, '');
-            const properties = this.generateAliasedSkinPayload(cleanUuid, skinUuid, username);
+            const properties = this.generateAliasedSkinPayload(cleanUuid, skinUuid, username, { model: skinModel });
 
             res.json({
                 id: cleanUuid,
                 name: username,
                 properties: properties
             });
-        });
-
-        // ============================================
-        // TEXTURE ENDPOINTS (skin/cape serving)
-        // ============================================
-
-        // Skin Proxy Endpoint with fallback
-        this.app_express.get('/skins/:filename', (req: Request, res: Response) => {
-            const { filename } = req.params;
-            const upstreamUrl = `${this.SUPABASE_URL}/storage/v1/object/public/skins/${filename}`;
-
-            console.log(`[SkinServer] Fetching skin: ${filename}`);
-
-            https.get(upstreamUrl, (upstreamRes) => {
-                if (upstreamRes.statusCode === 200) {
-                    res.setHeader('Content-Type', 'image/png');
-                    res.setHeader('Cache-Control', 'public, max-age=60');
-                    upstreamRes.pipe(res);
-                } else {
-                    // Fallback: Try to serve default Steve/Alex skin or return 404
-                    res.status(404).send('Skin not found');
-                }
-            }).on('error', (err) => {
-                console.error(`[SkinServer] ✗ Skin proxy error:`, err);
-                res.status(500).send('Proxy error');
-            });
-        });
-
-        // Cape Proxy Endpoint
-        this.app_express.get('/capes/:filename', (req: Request, res: Response) => {
-            const { filename } = req.params;
-            const upstreamUrl = `${this.SUPABASE_URL}/storage/v1/object/public/capes/${filename}`;
-
-            console.log(`[SkinServer] Fetching cape: ${filename}`);
-
-            https.get(upstreamUrl, (upstreamRes) => {
-                if (upstreamRes.statusCode === 200) {
-                    res.setHeader('Content-Type', 'image/png');
-                    res.setHeader('Cache-Control', 'public, max-age=60');
-                    upstreamRes.pipe(res);
-                } else {
-                    // Silent fail for capes (most users don't have capes)
-                    res.status(404).send('Cape not found');
-                }
-            }).on('error', (err) => {
-                console.error(`[SkinServer] ✗ Cape proxy error:`, err);
-                res.status(500).send('Proxy error');
-            });
-        });
-
-        // Legacy texture endpoint (some older clients/servers use this)
-        this.app_express.get('/textures/:hash', (req: Request, res: Response) => {
-            // Redirect to skin endpoint
-            res.redirect(`/skins/${req.params.hash}.png`);
         });
 
         // ============================================
@@ -681,8 +877,8 @@ export class SkinServerManager {
             }
             const profileId = uuid.replace(/-/g, '');
 
-            const skinUrl = `http://localhost:${this.port}/skins/${uuid}.png`;
-            const capeUrl = `http://localhost:${this.port}/capes/${uuid}.png`;
+            const skinUrl = `http://127.0.0.1:${this.port}/textures/skin/${uuid}`;
+            const capeUrl = `http://127.0.0.1:${this.port}/textures/cape/${uuid}`;
 
             res.json({
                 id: profileId,
@@ -691,7 +887,7 @@ export class SkinServerManager {
                     id: profileId,
                     state: "ACTIVE",
                     url: skinUrl,
-                    variant: "CLASSIC"
+                    variant: currentUser.skinModel === 'slim' ? 'SLIM' : 'CLASSIC'
                 }],
                 capes: [{
                     id: profileId,
@@ -748,6 +944,25 @@ export class SkinServerManager {
             res.json(players);
         });
 
+        // Clear texture cache endpoint (for debugging)
+        this.app_express.post('/whoap/clear-cache', (req: Request, res: Response) => {
+            SkinServerManager.skinCache.clear();
+            SkinServerManager.capeCache.clear();
+            console.log('[SkinServer] Cache cleared');
+            res.json({ success: true });
+        });
+
+        // Health check endpoint
+        this.app_express.get('/whoap/health', (req: Request, res: Response) => {
+            res.json({
+                status: 'ok',
+                currentUser: SkinServerManager.currentUser?.name || null,
+                cachedPlayers: SkinServerManager.playerCache.size,
+                cachedSkins: SkinServerManager.skinCache.size,
+                cachedCapes: SkinServerManager.capeCache.size
+            });
+        });
+
         // ============================================
         // PUBLIC KEY ENDPOINTS (for signature verification)
         // ============================================
@@ -766,11 +981,29 @@ export class SkinServerManager {
     }
 
     public start() {
-        this.server = this.app_express.listen(this.port, '127.0.0.1', () => {
-        });
+        // Find an available port if default is taken
+        const tryStart = (port: number) => {
+            this.server = this.app_express.listen(port, '127.0.0.1', () => {
+                this.port = port;
+                console.log(`[SkinServer] ✓ Started on http://127.0.0.1:${port}`);
+            }).on('error', (err: any) => {
+                if (err.code === 'EADDRINUSE') {
+                    console.warn(`[SkinServer] Port ${port} in use, trying ${port + 1}`);
+                    tryStart(port + 1);
+                } else {
+                    console.error('[SkinServer] Failed to start:', err);
+                }
+            });
+        };
+
+        tryStart(this.port);
     }
 
     public getPort(): number {
         return this.port;
+    }
+
+    public getServerUrl(): string {
+        return `http://127.0.0.1:${this.port}`;
     }
 }

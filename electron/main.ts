@@ -149,8 +149,8 @@ app.whenReady().then(() => {
     ipcMain.handle('skin:get-server-info', async () => {
         const skinServer = SkinServerManager.getInstance();
         return {
-            url: `http://localhost:${skinServer?.getPort() || 3000}`,
-            port: skinServer?.getPort() || 3000,
+            url: skinServer?.getServerUrl() || `http://127.0.0.1:25500`,
+            port: skinServer?.getPort() || 25500,
             multiplayerEnabled: true
         };
     });
