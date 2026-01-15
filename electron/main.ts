@@ -84,6 +84,7 @@ import { ModpackManager } from './managers/ModpackManager';
 import { ModsManager } from './managers/ModsManager';
 import { NetworkManager } from './managers/NetworkManager';
 import { AutoUpdateManager } from './managers/AutoUpdateManager';
+import { ScreenshotManager } from './managers/ScreenshotManager';
 
 app.whenReady().then(() => {
     new ConfigManager(); // Init first
@@ -96,6 +97,7 @@ app.whenReady().then(() => {
     new ModpackManager(); // Init Modpack IPC
     new ModsManager(); // Init Mods IPC
     new NetworkManager(); // Init Network IPC
+    new ScreenshotManager(); // Init Screenshot IPC
     CloudManager.getInstance(); // Init Cloud
 
     // Reset handler - mode: 'database' | 'full'

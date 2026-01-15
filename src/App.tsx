@@ -25,6 +25,7 @@ const News = lazy(() => import('./pages/News').then(m => ({ default: m.News })))
 const Friends = lazy(() => import('./pages/Friends').then(m => ({ default: m.Friends })));
 const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
+const Screenshots = lazy(() => import('./pages/Screenshots').then(m => ({ default: m.Screenshots })));
 
 // Fallback component for lazy loading
 const PageLoader = () => (
@@ -123,6 +124,7 @@ function App() {
                         {activeTab === 'home' && <Home user={user} />}
                         <Suspense fallback={<PageLoader />}>
                             {activeTab === 'profiles' && <Instances />}
+                            {activeTab === 'screenshots' && <Screenshots user={user} />}
                             {activeTab === 'settings' && <Settings />}
                             {activeTab === 'modpacks' && <ModpackBrowser isOnline={isOnline} />}
                             {activeTab === 'mods' && <ModsManager user={user} isOnline={isOnline} />}

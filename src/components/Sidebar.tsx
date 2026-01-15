@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import styles from './Sidebar.module.css';
-import { Home, Folder, Settings, LogOut, Globe, Package, Newspaper, Users, Code, ShieldAlert, User } from 'lucide-react';
+import { Home, Folder, Settings, LogOut, Globe, Package, Newspaper, Users, Code, ShieldAlert, User, Image } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { supabase } from '../lib/supabase';
 import { UserAvatar } from './UserAvatar';
@@ -37,6 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
     const tabs = [
         { id: 'home', label: 'Home', icon: Home },
         { id: 'profiles', label: 'Profiles', icon: Folder },
+        { id: 'screenshots', label: 'Screenshots', icon: Image },
         { id: 'mods', label: 'Mods', icon: Package },
         { id: 'modpacks', label: 'Modpacks', icon: Globe },
         { id: 'friends', label: 'Friends', icon: Users, beta: true },

@@ -9,3 +9,4 @@ export * from './News';
 export * from './Friends';
 export * from './Profile';
 export * from './Admin';
+export * from './Screenshots';
