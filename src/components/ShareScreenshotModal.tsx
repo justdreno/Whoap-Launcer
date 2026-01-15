@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Upload, Users } from 'lucide-react';
 import { Screenshot, ScreenshotApi } from '../api/screenshots';
+import { ScreenshotImage } from './ScreenshotImage';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../context/ToastContext';
 import styles from './ShareScreenshotModal.module.css';
@@ -83,7 +84,7 @@ export const ShareScreenshotModal: React.FC<ShareScreenshotModalProps> = ({
         try {
             // Get screenshot data from electron
             const result = await ScreenshotApi.shareToCloud(screenshot.path, user.uuid);
-            
+
             if (!result.success || !result.publicUrl) {
                 throw new Error(result.error || 'Failed to prepare screenshot');
             }
@@ -169,9 +170,8 @@ export const ShareScreenshotModal: React.FC<ShareScreenshotModalProps> = ({
                 </div>
 
                 <div className={styles.preview}>
-                    <img
-                        src={`file://${screenshot.path}`}
-                        alt={screenshot.filename}
+                    <ScreenshotImage
+                        screenshot={screenshot}
                         className={styles.previewImage}
                     />
                     <div className={styles.previewInfo}>

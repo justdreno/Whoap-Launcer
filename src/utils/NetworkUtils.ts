@@ -13,7 +13,7 @@ export class NetworkUtils {
      */
     static async checkConnection(): Promise<boolean> {
         const now = Date.now();
-        
+
         // Return cached result if recent check
         if (now - this.lastCheck < this.CHECK_INTERVAL) {
             return this.isOnlineCache;
@@ -32,7 +32,7 @@ export class NetworkUtils {
             const timeoutId = setTimeout(() => controller.abort(), 3000);
 
             try {
-                const response = await fetch('https://www.google.com/favicon.ico', {
+                await fetch('https://www.google.com/favicon.ico', {
                     method: 'HEAD',
                     mode: 'no-cors',
                     cache: 'no-cache',
@@ -43,7 +43,7 @@ export class NetworkUtils {
             } catch {
                 // If Google fails, try Cloudflare
                 try {
-                    const response = await fetch('https://cloudflare.com/cdn-cgi/trace', {
+                    await fetch('https://cloudflare.com/cdn-cgi/trace', {
                         method: 'HEAD',
                         mode: 'no-cors',
                         cache: 'no-cache',

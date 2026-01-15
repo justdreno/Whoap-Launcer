@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight, Copy, Share2, Download, FolderOpen, Trash2 } from 'lucide-react';
 import { Screenshot } from '../api/screenshots';
+import { ScreenshotImage } from './ScreenshotImage';
 import styles from './ScreenshotLightbox.module.css';
 
 interface ScreenshotLightboxProps {
@@ -80,11 +81,9 @@ export const ScreenshotLightbox: React.FC<ScreenshotLightboxProps> = ({
                 )}
 
                 <div className={styles.imageContainer}>
-                    <img
-                        src={`file://${currentScreenshot.path}`}
-                        alt={currentScreenshot.filename}
+                    <ScreenshotImage
+                        screenshot={currentScreenshot}
                         className={styles.image}
-                        data-testid="lightbox-image"
                     />
                 </div>
 

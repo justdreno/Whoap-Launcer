@@ -1,64 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import { Grid, List, RefreshCw, Image as ImageIcon, Trash2, FolderOpen, Copy, Share2, Download, Calendar, User, SortDesc } from 'lucide-react';
 import { Screenshot, ScreenshotApi } from '../api/screenshots';
 import { ScreenshotLightbox } from '../components/ScreenshotLightbox';
 import { ShareScreenshotModal } from '../components/ShareScreenshotModal';
-import { CustomSelect, Option } from '../components/CustomSelect';
+import { ScreenshotImage } from '../components/ScreenshotImage';
+import { CustomSelect } from '../components/CustomSelect';
 import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../context/ConfirmContext';
 import styles from './Screenshots.module.css';
-
-// Component to load screenshot image via IPC
-const ScreenshotImage: React.FC<{ screenshot: Screenshot; className?: string; alt?: string }> = ({ screenshot, className, alt }) => {
-    const [imageSrc, setImageSrc] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(false);
-
-    useEffect(() => {
-        let isMounted = true;
-
-        const loadImage = async () => {
-            try {
-                const result = await ScreenshotApi.getImage(screenshot.path);
-                if (isMounted) {
-                    if (result.success && result.dataUrl) {
-                        setImageSrc(result.dataUrl);
-                        setError(false);
-                    } else {
-                        setError(true);
-                    }
-                    setLoading(false);
-                }
-            } catch (e) {
-                if (isMounted) {
-                    setError(true);
-                    setLoading(false);
-                }
-            }
-        };
-
-        loadImage();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [screenshot.path]);
-
-    if (loading) {
-        return <div className={className} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1a1a1a' }}>
-            <span style={{ color: '#666', fontSize: '12px' }}>Loading...</span>
-        </div>;
-    }
-
-    if (error || !imageSrc) {
-        return <div className={className} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1a1a1a' }}>
-            <ImageIcon size={32} color="#666" />
-        </div>;
-    }
-
-    return <img src={imageSrc} alt={alt || screenshot.filename} className={className} />;
-};
 
 interface ScreenshotsProps {
     user?: any;

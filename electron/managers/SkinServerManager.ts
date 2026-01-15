@@ -189,36 +189,66 @@ export class SkinServerManager {
     private setupRoutes() {
         this.app_express.use(express.json());
 
-        // DEBUG LOGGING MIDDLEWARE
+        // CORS headers for cross-origin requests
         this.app_express.use((req, res, next) => {
-            console.log(`[SkinServer] ${req.method} ${req.url}`);
-            // console.log(`[SkinServer] Headers:`, JSON.stringify(req.headers)); // Reduce noise
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
             next();
         });
 
-        // Root Metadata
-        this.app_express.get('/', (req: Request, res: Response) => {
-            res.json({
-                meta: {
-                    serverName: "Whoap Skin Server",
-                    implementationName: "whoap-api",
-                    implementationVersion: "1.0.0"
-                },
-                skinDomains: ["localhost", "api.whoap.com", "mc-heads.net", "textures.minecraft.net", "tjtutxeqkbkjfawdyazc.supabase.co"],
-                signaturePublickey: this.getPublicKey()
-            });
+        // DEBUG LOGGING MIDDLEWARE
+        this.app_express.use((req, res, next) => {
+            console.log(`[SkinServer] ${req.method} ${req.url}`);
+            console.log(`[SkinServer] Current User:`, SkinServerManager.currentUser?.name || 'None');
+            next();
         });
 
-        this.app_express.get('/authlib-injector/api/yggdrasil', (req: Request, res: Response) => {
-            res.json({
+        // Root Metadata - Primary endpoint for authlib-injector
+        this.app_express.get('/', (req: Request, res: Response) => {
+            const metadata = {
                 meta: {
                     serverName: "Whoap Skin Server",
                     implementationName: "whoap-api",
                     implementationVersion: "1.0.0"
                 },
-                skinDomains: ["localhost", "api.whoap.com", "mc-heads.net", "textures.minecraft.net", "tjtutxeqkbkjfawdyazc.supabase.co"],
+                skinDomains: [
+                    "localhost",
+                    "127.0.0.1",
+                    ".supabase.co",
+                    "tjtutxeqkbkjfawdyazc.supabase.co",
+                    ".minecraft.net",
+                    "textures.minecraft.net",
+                    "mc-heads.net",
+                    "api.whoap.com"
+                ],
                 signaturePublickey: this.getPublicKey()
-            });
+            };
+            console.log(`[SkinServer] Serving root metadata. Current user: ${SkinServerManager.currentUser?.name || 'None'}`);
+            res.json(metadata);
+        });
+
+        // Authlib-injector metadata endpoint
+        this.app_express.get('/authlib-injector/yggdrasil', (req: Request, res: Response) => {
+            const metadata = {
+                meta: {
+                    serverName: "Whoap Skin Server",
+                    implementationName: "whoap-api",
+                    implementationVersion: "1.0.0"
+                },
+                skinDomains: [
+                    "localhost",
+                    "127.0.0.1",
+                    ".supabase.co",
+                    "tjtutxeqkbkjfawdyazc.supabase.co",
+                    ".minecraft.net",
+                    "textures.minecraft.net",
+                    "mc-heads.net",
+                    "api.whoap.com"
+                ],
+                signaturePublickey: this.getPublicKey()
+            };
+            res.json(metadata);
         });
 
         // Profile Endpoint
@@ -317,18 +347,29 @@ export class SkinServerManager {
             const SUPABASE_PROJECT = 'tjtutxeqkbkjfawdyazc';
             const upstreamUrl = `https://${SUPABASE_PROJECT}.supabase.co/storage/v1/object/public/skins/${filename}`;
 
-            console.log(`[SkinServer] Proxying skin: ${filename} from ${upstreamUrl}`);
+            console.log(`[SkinServer] =======================================`);
+            console.log(`[SkinServer] Skin Request: ${filename}`);
+            console.log(`[SkinServer] Fetching from: ${upstreamUrl}`);
+            console.log(`[SkinServer] =======================================`);
 
             https.get(upstreamUrl, (upstreamRes) => {
+                console.log(`[SkinServer] Supabase response status: ${upstreamRes.statusCode}`);
+
                 if (upstreamRes.statusCode === 200) {
                     res.setHeader('Content-Type', 'image/png');
+                    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+                    res.setHeader('Pragma', 'no-cache');
+                    res.setHeader('Expires', '0');
                     upstreamRes.pipe(res);
+                    console.log(`[SkinServer] ✓ Skin served successfully: ${filename}`);
                 } else {
-                    console.log(`[SkinServer] Failed to fetch skin from Supabase: ${upstreamRes.statusCode}`);
+                    console.log(`[SkinServer] ✗ Skin not found on Supabase!`);
+                    console.log(`[SkinServer] ✗ Please upload your skin via the Profile page`);
+                    console.log(`[SkinServer] ✗ URL checked: ${upstreamUrl}`);
                     res.status(404).send('Skin not found');
                 }
             }).on('error', (err) => {
-                console.error(`[SkinServer] Proxy error:`, err);
+                console.error(`[SkinServer] ✗ Proxy error:`, err);
                 res.status(500).send('Proxy error');
             });
         });
@@ -344,13 +385,17 @@ export class SkinServerManager {
             https.get(upstreamUrl, (upstreamRes) => {
                 if (upstreamRes.statusCode === 200) {
                     res.setHeader('Content-Type', 'image/png');
+                    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+                    res.setHeader('Pragma', 'no-cache');
+                    res.setHeader('Expires', '0');
                     upstreamRes.pipe(res);
+                    console.log(`[SkinServer] ✓ Cape served successfully: ${filename}`);
                 } else {
-                    // console.log(`[SkinServer] Failed to fetch cape from Supabase: ${upstreamRes.statusCode}`);
+                    // Silent fail for capes (most users don't have capes)
                     res.status(404).send('Cape not found');
                 }
             }).on('error', (err) => {
-                console.error(`[SkinServer] Cape Proxy error:`, err);
+                console.error(`[SkinServer] ✗ Cape Proxy error:`, err);
                 res.status(500).send('Proxy error');
             });
         });
@@ -394,10 +439,13 @@ export class SkinServerManager {
         // Redirected from api.minecraftservices.com/minecraft/profile
         this.app_express.get('/minecraftservices/minecraft/profile', (req: Request, res: Response) => {
             const currentUser = SkinServerManager.getCurrentUser();
-            console.log(`[SkinServer] MinecraftServices profile request. Current user: ${currentUser?.name || 'none'}`);
+            console.log(`[SkinServer] =======================================`);
+            console.log(`[SkinServer] MinecraftServices profile request`);
+            console.log(`[SkinServer] Current user: ${currentUser?.name || 'NONE - THIS IS THE PROBLEM!'}`);
+            console.log(`[SkinServer] =======================================`);
 
             if (!currentUser) {
-                console.log('[SkinServer] No current user set, returning 404');
+                console.log('[SkinServer] ✗ No current user set, returning 404');
                 res.status(404).json({ error: "NOT_FOUND", errorMessage: "Not Found" });
                 return;
             }
@@ -411,7 +459,11 @@ export class SkinServerManager {
             const profileId = uuid.replace(/-/g, '');
 
             const skinUrl = `http://localhost:${this.port}/skins/${uuid}.png`;
-            console.log(`[SkinServer] Returning profile with skin: ${skinUrl}`);
+            const capeUrl = `http://localhost:${this.port}/capes/${uuid}.png`;
+
+            console.log(`[SkinServer] ✓ Returning MinecraftServices profile for ${currentUser.name}`);
+            console.log(`[SkinServer] - Skin URL: ${skinUrl}`);
+            console.log(`[SkinServer] - Cape URL: ${capeUrl}`);
 
             // Return profile in MinecraftServices format
             res.json({
@@ -423,7 +475,12 @@ export class SkinServerManager {
                     url: skinUrl,
                     variant: "CLASSIC"
                 }],
-                capes: []
+                capes: [{
+                    id: profileId,
+                    state: "ACTIVE",
+                    url: capeUrl,
+                    alias: "whoap"
+                }]
             });
         });
     }

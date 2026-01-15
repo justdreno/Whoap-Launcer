@@ -22,11 +22,18 @@ export class LaunchProcess {
 
     private registerListeners() {
         ipcMain.handle('game:launch', async (event, instanceId: string, _unusedPath: string, versionId: string, authData: any) => {
-            console.log(`[Launch] Starting ${instanceId} (${versionId})...`);
+            console.log(`[Launch] =======================================`);
+            console.log(`[Launch] Launch Request Received`);
+            console.log(`[Launch] - Instance: ${instanceId} (${versionId})`);
+            console.log(`[Launch] - Auth Data:`, JSON.stringify(authData, null, 2));
+            console.log(`[Launch] =======================================`);
 
             // Register current user with SkinServer so it can serve the correct skin
             if (authData.name && authData.uuid) {
+                console.log(`[Launch] ✓ Registering user with SkinServer: ${authData.name} (${authData.uuid})`);
                 SkinServerManager.setCurrentUser(authData.uuid, authData.name);
+            } else {
+                console.log(`[Launch] ✗ WARNING: No authData name/uuid found! Skin system will not work!`);
             }
 
             // Trigger Cloud Sync
@@ -538,7 +545,7 @@ export class LaunchProcess {
                     '-Dminecraft.launcher.brand=whoap',
                     '-Dminecraft.launcher.version=1.0.0',
                     '-Dminecraft.client.jar=' + clientJarPath,
-                    // Inject Authlib Agent
+                    // Inject Authlib Agent - MUST come before -cp
                     `-javaagent:${authlibPath}=${AUTH_SERVER_URL}`,
                     '-cp', classpath,
                     versionData.mainClass,
@@ -550,12 +557,19 @@ export class LaunchProcess {
                     '--uuid', authData.uuid,
                     // Pass the Authlib API root as the accessToken source? No, standard MC doesn't use it this way.
                     // But authlib-injector wraps requests.
-                    '--accessToken', authData.token,
+                    '--accessToken', authData.token || '0',
                     '--userType', 'mojang',
                     '--versionType', versionData.type || 'release'
                 ];
 
-                console.log(`[Launch] Spawning java with RAM ${minRam}-${maxRam}MB...`);
+                console.log(`[Launch] =======================================`);
+                console.log(`[Launch] Game Launch Configuration:`);
+                console.log(`[Launch] - Instance: ${instanceId} (${versionId})`);
+                console.log(`[Launch] - Player: ${authData.name} (${authData.uuid})`);
+                console.log(`[Launch] - Authlib Server: ${AUTH_SERVER_URL}`);
+                console.log(`[Launch] - Authlib Agent: ${authlibPath}`);
+                console.log(`[Launch] - RAM: ${minRam}MB - ${maxRam}MB`);
+                console.log(`[Launch] =======================================`);
 
                 // Get launch behavior settings
                 const launchBehavior = ConfigManager.getLaunchBehavior();
