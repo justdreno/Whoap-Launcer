@@ -8,6 +8,7 @@ export interface Screenshot {
     date: number;
     version?: string;
     loader?: string;
+    imageDataUrl?: string; // Cached base64 data URL for rendering
 }
 
 export const ScreenshotApi = {
@@ -33,5 +34,9 @@ export const ScreenshotApi = {
 
     shareToCloud: async (path: string, userId: string): Promise<{ success: boolean; publicUrl?: string; error?: string }> => {
         return window.ipcRenderer.invoke('screenshots:share-to-cloud', path, userId);
+    },
+
+    getImage: async (path: string): Promise<{ success: boolean; dataUrl?: string; error?: string }> => {
+        return window.ipcRenderer.invoke('screenshots:get-image', path);
     }
 };

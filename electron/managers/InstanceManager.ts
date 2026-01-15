@@ -169,6 +169,24 @@ export class InstanceManager {
         // 1. Check local instances (Whoap/instances)
         let p = path.join(this.instancesPath, instanceId);
         if (existsSync(p)) {
+            // For imported instances, check if useExternalPath flag is set
+            const configPath = path.join(p, 'instance.json');
+            if (existsSync(configPath)) {
+                try {
+                    const content = readFileSync(configPath, 'utf-8');
+                    const config = JSON.parse(content);
+                    if (config.useExternalPath || config.isImported || config.type === 'imported') {
+                        // Return the external path instead for game data operations
+                        const externalPath = path.join(ConfigManager.getGamePath(), 'versions', instanceId);
+                        if (existsSync(externalPath)) {
+                            console.log(`Imported instance - using external path: ${externalPath}`);
+                            return externalPath;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to read instance.json for path resolution:', e);
+                }
+            }
             console.log(`Found local instance at: ${p}`);
             return p;
         }
