@@ -20,7 +20,7 @@ export const Instances: React.FC<InstancesProps> = ({ onSelectInstance }) => {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [loading, setLoading] = useState(true);
     const [settingsInstance, setSettingsInstance] = useState<Instance | null>(null);
-    const [processing, setProcessing] = useState<{ message: string; subMessage?: string } | null>(null);
+    const [processing, setProcessing] = useState<{ message: string; subMessage?: string; progress?: number } | null>(null);
     const { showToast } = useToast();
 
     const loadInstances = async () => {
@@ -65,6 +65,14 @@ export const Instances: React.FC<InstancesProps> = ({ onSelectInstance }) => {
 
     useEffect(() => {
         loadInstances();
+
+        const handleProgress = (_: any, data: any) => {
+            setProcessing(prev => prev ? { ...prev, subMessage: data.status, progress: data.progress } : { message: 'Importing...', subMessage: data.status, progress: data.progress });
+        };
+        window.ipcRenderer.on('instance:import-progress', handleProgress);
+        return () => {
+            window.ipcRenderer.off('instance:import-progress', handleProgress);
+        };
     }, []);
 
     return (
@@ -80,7 +88,7 @@ export const Instances: React.FC<InstancesProps> = ({ onSelectInstance }) => {
                         <RefreshCw size={20} />
                     </button>
                     <button className={styles.createBtn} onClick={async () => {
-                        setProcessing({ message: 'Importing Instance...', subMessage: 'This may take a moment based on file size.' });
+                        setProcessing({ message: 'Importing Instance...', subMessage: 'Initializing...', progress: 0 });
                         try {
                             const res = await InstanceApi.import();
                             if (res.success) {
@@ -185,7 +193,11 @@ export const Instances: React.FC<InstancesProps> = ({ onSelectInstance }) => {
             )}
 
             {processing && (
-                <ProcessingModal message={processing.message} subMessage={processing.subMessage} />
+                <ProcessingModal
+                    message={processing.message}
+                    subMessage={processing.subMessage}
+                    progress={processing.progress}
+                />
             )}
         </div>
     );

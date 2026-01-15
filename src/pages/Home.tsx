@@ -181,30 +181,34 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
                     <div className={styles.titleRow}>
                         <div
                             className={styles.heroTitle}
-                            onClick={() => !isLaunching && setShowInstanceDropdown(!showInstanceDropdown)}
-                            style={{ cursor: 'pointer' }}
+                            onClick={() => !isLaunching && instances.length > 0 && setShowInstanceDropdown(!showInstanceDropdown)}
+                            style={{ cursor: instances.length > 0 ? 'pointer' : 'default' }}
                         >
                             {activeInstance ? (
                                 <>Ready to jump back into <span className={styles.profileHighlight}>{activeInstance.name}</span>?</>
-                            ) : "Let's create your adventure."}
+                            ) : (
+                                <>Create your first <span className={styles.profileHighlight}>profile</span> to start playing</>
+                            )}
                         </div>
-                        <div
-                            style={{
-                                background: 'rgba(255,255,255,0.1)',
-                                borderRadius: '50%',
-                                padding: 4,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                transition: 'all 0.2s',
-                                transform: showInstanceDropdown ? 'rotate(180deg)' : 'rotate(0deg)'
-                            }}
-                            onClick={() => !isLaunching && setShowInstanceDropdown(!showInstanceDropdown)}
-                        >
-                            <ChevronDown size={20} color="white" />
-                        </div>
+                        {instances.length > 0 && (
+                            <div
+                                style={{
+                                    background: 'rgba(255,255,255,0.1)',
+                                    borderRadius: '50%',
+                                    padding: 4,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    transition: 'all 0.2s',
+                                    transform: showInstanceDropdown ? 'rotate(180deg)' : 'rotate(0deg)'
+                                }}
+                                onClick={() => !isLaunching && setShowInstanceDropdown(!showInstanceDropdown)}
+                            >
+                                <ChevronDown size={20} color="white" />
+                            </div>
+                        )}
 
                         {/* Instance Dropdown - Redesigned */}
-                        {showInstanceDropdown && (
+                        {showInstanceDropdown && instances.length > 0 && (
                             <div className={styles.instanceDropdown} style={{ top: 'calc(100% + 12px)', left: 0, width: 340 }}>
                                 {instances.map(inst => (
                                     <div
@@ -267,6 +271,7 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
                                 }
                             }}
                             disabled={isLaunching || (!selectedInstance && instances.length > 0)}
+                            data-testid="home-launch-button"
                         >
                             {isLaunching ? (
                                 <div className={styles.launchContent}>
@@ -289,13 +294,19 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
                             )}
                         </button>
                     </div>
-                    <UserAvatar
-                        username={user.name}
-                        uuid={user.uuid}
-                        accountType={(user as any).type}
-                        variant="body"
-                        className={styles.heroImage}
-                    />
+                    {activeInstance ? (
+                        <UserAvatar
+                            username={user.name}
+                            uuid={user.uuid}
+                            accountType={(user as any).type}
+                            variant="body"
+                            className={styles.heroImage}
+                        />
+                    ) : (
+                        <div className={styles.emptyProfileIcon}>
+                            <Layers size={80} strokeWidth={1.5} />
+                        </div>
+                    )}
                 </div>
             </div>
 

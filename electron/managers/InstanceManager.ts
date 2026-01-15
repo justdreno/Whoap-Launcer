@@ -126,9 +126,9 @@ export class InstanceManager {
             }
         });
 
-        ipcMain.handle('instance:import', async () => {
+        ipcMain.handle('instance:import', async (event) => {
             try {
-                return await this.importInstance();
+                return await this.importInstance(event);
             } catch (error) {
                 console.error("Failed to import instance:", error);
                 return { success: false, error: String(error) };
@@ -145,9 +145,9 @@ export class InstanceManager {
             }
         });
 
-        ipcMain.handle('instance:import-external', async (_, versionIds: string[]) => {
+        ipcMain.handle('instance:import-external', async (event, versionIds: string[]) => {
             try {
-                return await this.importExternalInstances(versionIds);
+                return await this.importExternalInstances(event, versionIds);
             } catch (error) {
                 console.error("Failed to import external instances:", error);
                 return { success: false, error: String(error) };
@@ -628,7 +628,7 @@ export class InstanceManager {
         return { success: true, filePath };
     }
 
-    async importInstance() {
+    async importInstance(event?: any) {
         const { filePaths } = await dialog.showOpenDialog({
             title: 'Import Instance',
             properties: ['openFile'],
@@ -636,6 +636,8 @@ export class InstanceManager {
         });
 
         if (!filePaths || filePaths.length === 0) return { success: false, canceled: true };
+
+        event?.sender.send('instance:import-progress', { status: 'Reading zip file...', progress: 10 });
 
         const zipPath = filePaths[0];
         const zip = new AdmZip(zipPath);
@@ -647,6 +649,8 @@ export class InstanceManager {
         if (!configEntry) {
             throw new Error('Invalid instance file: instance.json not found inside zip.');
         }
+
+        event?.sender.send('instance:import-progress', { status: 'Parsing configuration...', progress: 30 });
 
         const configContent = configEntry.getData().toString('utf8');
         let config;
@@ -664,6 +668,8 @@ export class InstanceManager {
             counter++;
         }
 
+        event?.sender.send('instance:import-progress', { status: 'Extracting files...', progress: 50 });
+
         const destPath = path.join(this.instancesPath, newInstanceId);
         zip.extractAllTo(destPath, true);
 
@@ -674,15 +680,27 @@ export class InstanceManager {
             await fs.writeFile(path.join(destPath, 'instance.json'), JSON.stringify(config, null, 4));
         }
 
+        event?.sender.send('instance:import-progress', { status: 'Finalizing...', progress: 100 });
+
         return { success: true, instanceId: newInstanceId };
     }
 
-    async importExternalInstances(versionIds: string[]) {
+    async importExternalInstances(event: any, versionIds: string[]) {
         const gamePath = ConfigManager.getGamePath();
         const versionsPath = path.join(gamePath, 'versions');
         const results: { success: boolean, id: string, error?: string }[] = [];
 
+        const total = versionIds.length;
+        let current = 0;
+
         for (const id of versionIds) {
+            current++;
+            const progress = (current / total) * 100;
+            event.sender.send('instance:import-progress', {
+                status: `Importing ${id} (${current}/${total})...`,
+                progress
+            });
+
             try {
                 const sourcePath = path.join(versionsPath, id);
                 if (!existsSync(sourcePath)) {

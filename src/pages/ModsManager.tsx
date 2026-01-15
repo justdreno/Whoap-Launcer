@@ -8,9 +8,10 @@ import { Skeleton } from '../components/Skeleton';
 
 interface ModsManagerProps {
     user: any;
+    isOnline?: boolean;
 }
 
-export const ModsManager: React.FC<ModsManagerProps> = () => {
+export const ModsManager: React.FC<ModsManagerProps> = ({ isOnline = true }) => {
     const [instances, setInstances] = useState<Instance[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -39,6 +40,7 @@ export const ModsManager: React.FC<ModsManagerProps> = () => {
         return (
             <InstanceMods
                 instanceId={selectedId}
+                isOnline={isOnline}
                 onBack={() => {
                     setSelectedId(null);
                     loadInstances();

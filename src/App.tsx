@@ -39,6 +39,7 @@ function App() {
     const [activeTab, setActiveTab] = useState('home');
     const [user, setUser] = useState<any>(null);
     const [checkingSession, setCheckingSession] = useState(true);
+    const [isOnline, setIsOnline] = useState(true);
 
     // Check for existing session on startup
     useEffect(() => {
@@ -97,7 +98,10 @@ function App() {
 
     if (showSplash) {
         // Only ready to dismiss when checkingSession is DONE (false)
-        return <LoadingScreen isReady={!checkingSession} onComplete={() => setShowSplash(false)} />;
+        return <LoadingScreen isReady={!checkingSession} onComplete={(online) => {
+            setIsOnline(online);
+            setShowSplash(false);
+        }} />;
     }
 
     if (!user) {
@@ -120,9 +124,9 @@ function App() {
                         <Suspense fallback={<PageLoader />}>
                             {activeTab === 'profiles' && <Instances />}
                             {activeTab === 'settings' && <Settings />}
-                            {activeTab === 'modpacks' && <ModpackBrowser />}
-                            {activeTab === 'mods' && <ModsManager user={user} />}
-                            {activeTab === 'friends' && <Friends />}
+                            {activeTab === 'modpacks' && <ModpackBrowser isOnline={isOnline} />}
+                            {activeTab === 'mods' && <ModsManager user={user} isOnline={isOnline} />}
+                            {activeTab === 'friends' && <Friends isOnline={isOnline} />}
                             {activeTab === 'news' && <News />}
                             {activeTab === 'profile' && <Profile user={user} />}
                             {activeTab === 'admin' && <Admin user={user} />}

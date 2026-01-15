@@ -190,6 +190,35 @@
     transform-origin: bottom right;
 }
 
+.emptyProfileIcon {
+    position: absolute;
+    right: 50px;
+    bottom: 40px;
+    width: 140px;
+    height: 140px;
+    background: rgba(255, 136, 0, 0.08);
+    border: 2px dashed rgba(255, 136, 0, 0.3);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 136, 0, 0.4);
+    z-index: 5;
+    pointer-events: none;
+    animation: pulse 3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 0.6;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.05);
+    }
+}
+
 /* ==================== DROPDOWN ==================== */
 .instanceDropdown {
     position: absolute;

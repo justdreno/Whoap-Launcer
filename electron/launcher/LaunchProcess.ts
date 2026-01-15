@@ -214,6 +214,32 @@ export class LaunchProcess {
                 // 2. Queue Downloads
                 const downloads: DownloadTask[] = [];
 
+                // 2.1 Download Asset Index and Assets
+                const assetIndexId = versionData.assetIndex?.id || versionData.assets || 'legacy';
+                const assetIndexUrl = versionData.assetIndex?.url;
+                const assetIndexPath = path.join(assetsDir, 'indexes', `${assetIndexId}.json`);
+                
+                if (assetIndexUrl) {
+                    // Ensure indexes directory exists
+                    const indexesDir = path.join(assetsDir, 'indexes');
+                    if (!fs.existsSync(indexesDir)) fs.mkdirSync(indexesDir, { recursive: true });
+                    
+                    // Download asset index if missing or check existing
+                    if (!fs.existsSync(assetIndexPath)) {
+                        downloads.push({
+                            url: assetIndexUrl,
+                            destination: assetIndexPath,
+                            sha1: versionData.assetIndex?.sha1,
+                            size: versionData.assetIndex?.size,
+                            priority: 15 // High priority for index
+                        });
+                        
+                        console.log(`[Launch] Asset index will be downloaded: ${assetIndexId}`);
+                    } else {
+                        console.log(`[Launch] Asset index exists: ${assetIndexId}`);
+                    }
+                }
+
                 // Authlib Injector Logic
                 const AUTHLIB_URL = 'https://github.com/yushijinhun/authlib-injector/releases/download/v1.2.7/authlib-injector-1.2.7.jar';
                 // Using local backend-api for now
@@ -336,6 +362,107 @@ export class LaunchProcess {
                             }
                         });
                     });
+                }
+
+                // 3.5 Download Missing/Corrupt Assets
+                if (assetIndexUrl && fs.existsSync(assetIndexPath)) {
+                    event.sender.send('launch:progress', { status: 'Checking assets...', progress: 0, total: 100 });
+                    
+                    try {
+                        const assetIndex = JSON.parse(fs.readFileSync(assetIndexPath, 'utf-8'));
+                        const assetDownloads: DownloadTask[] = [];
+                        const objectsDir = path.join(assetsDir, 'objects');
+                        
+                        if (!fs.existsSync(objectsDir)) {
+                            fs.mkdirSync(objectsDir, { recursive: true });
+                        }
+
+                        // Check each asset
+                        const assets = assetIndex.objects || {};
+                        const assetKeys = Object.keys(assets);
+                        let checkedCount = 0;
+                        
+                        for (const assetKey of assetKeys) {
+                            const asset = assets[assetKey];
+                            const hash = asset.hash;
+                            const size = asset.size;
+                            
+                            // Asset path follows Minecraft structure: objects/[first 2 chars of hash]/[hash]
+                            const hashPrefix = hash.substring(0, 2);
+                            const assetDir = path.join(objectsDir, hashPrefix);
+                            const assetPath = path.join(assetDir, hash);
+                            
+                            // Check if asset exists and verify size
+                            let needsDownload = false;
+                            if (!fs.existsSync(assetPath)) {
+                                needsDownload = true;
+                            } else {
+                                // Verify file size matches
+                                const stats = fs.statSync(assetPath);
+                                if (stats.size !== size) {
+                                    console.log(`[Launch] Asset ${assetKey} size mismatch. Expected: ${size}, Got: ${stats.size}`);
+                                    needsDownload = true;
+                                }
+                            }
+                            
+                            if (needsDownload) {
+                                // Ensure subdirectory exists
+                                if (!fs.existsSync(assetDir)) {
+                                    fs.mkdirSync(assetDir, { recursive: true });
+                                }
+                                
+                                assetDownloads.push({
+                                    url: `https://resources.download.minecraft.net/${hashPrefix}/${hash}`,
+                                    destination: assetPath,
+                                    sha1: hash,
+                                    size: size,
+                                    priority: 5 // Lower priority than libraries
+                                });
+                            }
+                            
+                            checkedCount++;
+                            if (checkedCount % 100 === 0) {
+                                event.sender.send('launch:progress', { 
+                                    status: `Checking assets... ${checkedCount}/${assetKeys.length}`, 
+                                    progress: checkedCount, 
+                                    total: assetKeys.length 
+                                });
+                            }
+                        }
+                        
+                        // Download missing/corrupt assets
+                        if (assetDownloads.length > 0) {
+                            console.log(`[Launch] Downloading ${assetDownloads.length} missing/corrupt assets...`);
+                            event.sender.send('launch:progress', { 
+                                status: `Downloading ${assetDownloads.length} assets...`, 
+                                progress: 0, 
+                                total: assetDownloads.length 
+                            });
+                            
+                            this.downloader.addToQueue(assetDownloads);
+                            await new Promise<void>((resolve, reject) => {
+                                this.downloader.on('done', resolve);
+                                this.downloader.on('error', reject);
+                                let lastProgress = 0;
+                                this.downloader.on('progress', (p) => {
+                                    const now = Date.now();
+                                    if (now - lastProgress > 200) {
+                                        event.sender.send('launch:progress', {
+                                            status: `Downloading assets... ${(p.current / 1024 / 1024).toFixed(1)}MB`,
+                                            progress: p.current,
+                                            total: p.total
+                                        });
+                                        lastProgress = now;
+                                    }
+                                });
+                            });
+                        } else {
+                            console.log(`[Launch] All assets verified and present`);
+                        }
+                    } catch (e) {
+                        console.error('[Launch] Failed to process asset index:', e);
+                        // Continue launch even if asset check fails
+                    }
                 }
 
                 // 4. Build Classpath

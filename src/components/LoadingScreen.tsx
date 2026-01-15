@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import styles from './LoadingScreen.module.css';
 import logo from '../assets/logo.png';
+import { NetworkUtils } from '../utils/NetworkUtils';
+import { WifiOff } from 'lucide-react';
 
 interface LoadingScreenProps {
-    onComplete: () => void;
+    onComplete: (isOnline: boolean) => void;
     isReady: boolean;
 }
 
@@ -11,6 +13,8 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ onComplete, isRead
     const [progress, setProgress] = useState(0);
     const [status, setStatus] = useState("Initializing...");
     const [canComplete, setCanComplete] = useState(false);
+    const [isOnline, setIsOnline] = useState(true);
+    const [checkingNetwork, setCheckingNetwork] = useState(false);
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -22,7 +26,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ onComplete, isRead
                 }
 
                 // Update status based on progress
-                if (prev > 20 && prev < 40) setStatus("Checking updates...");
+                if (prev > 20 && prev < 40) setStatus("Checking network...");
                 if (prev > 40 && prev < 70) setStatus("Loading resources...");
                 if (prev > 70 && prev < 90) setStatus("Preparing interface...");
                 if (prev > 90) setStatus("Finalizing...");
@@ -35,15 +39,27 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ onComplete, isRead
         return () => clearInterval(interval);
     }, []);
 
+    // Check internet connectivity
     useEffect(() => {
-        if (canComplete && isReady) {
+        const checkNetwork = async () => {
+            setCheckingNetwork(true);
+            const online = await NetworkUtils.checkConnection();
+            setIsOnline(online);
+            setCheckingNetwork(false);
+        };
+        
+        checkNetwork();
+    }, []);
+
+    useEffect(() => {
+        if (canComplete && isReady && !checkingNetwork) {
             // Add a small delay for smoothness even if instantly ready
             const t = setTimeout(() => {
-                onComplete();
+                onComplete(isOnline);
             }, 500);
             return () => clearTimeout(t);
         }
-    }, [canComplete, isReady, onComplete]);
+    }, [canComplete, isReady, checkingNetwork, isOnline, onComplete]);
 
     return (
         <div className={styles.container}>
@@ -58,6 +74,13 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ onComplete, isRead
                 <div className={styles.progressContainer}>
                     <div className={styles.progressBar} style={{ width: `${progress}%` }}></div>
                 </div>
+
+                {!isOnline && progress > 50 && (
+                    <div className={styles.networkWarning}>
+                        <WifiOff size={16} />
+                        <span>No internet connection - Some features will be limited</span>
+                    </div>
+                )}
 
                 <div className={styles.versionTag}>v1.0.0 Alpha</div>
             </div>

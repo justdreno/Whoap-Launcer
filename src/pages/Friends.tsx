@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import styles from './Friends.module.css';
-import { Globe, Package, Users, UserPlus, Search, Check, X, Clock, Info, Calendar, User } from 'lucide-react';
+import { Globe, Package, Users, UserPlus, Search, Check, X, Clock, Info, Calendar, User, WifiOff, Lock } from 'lucide-react';
 import { CloudManager } from '../utils/CloudManager';
 import { AccountManager } from '../utils/AccountManager';
 import { InstanceApi } from '../api/instances';
@@ -9,7 +9,11 @@ import { Skeleton } from '../components/Skeleton';
 import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../context/ConfirmContext';
 
-export const Friends = () => {
+interface FriendsProps {
+    isOnline?: boolean;
+}
+
+export const Friends: React.FC<FriendsProps> = ({ isOnline = true }) => {
     const [activeTab, setActiveTab] = useState<'list' | 'requests' | 'add' | 'shared'>('list');
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -159,6 +163,29 @@ export const Friends = () => {
                 <div style={{ padding: 40, textAlign: 'center', color: '#a1a1aa' }}>
                     <h2>Whoap Account Required</h2>
                     <p>Please login with a Whoap account to use social features.</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Offline Mode Lock
+    if (!isOnline) {
+        return (
+            <div className={styles.container}>
+                <PageHeader
+                    title="Friends"
+                    description="Connect and play with your friends, and share your instances."
+                />
+                <div className={styles.offlineLock}>
+                    <div className={styles.lockIcon}>
+                        <WifiOff size={48} />
+                    </div>
+                    <h2>Internet Connection Required</h2>
+                    <p>Friends feature requires an active internet connection. Please check your network and try again.</p>
+                    <div className={styles.lockBadge}>
+                        <Lock size={14} />
+                        <span>Feature Locked</span>
+                    </div>
                 </div>
             </div>
         );

@@ -23,6 +23,7 @@ import { VersionScannerModal } from '../components/VersionScannerModal';
 import { AccountManager } from '../utils/AccountManager';
 import { CloudManager } from '../utils/CloudManager';
 import { useToast } from '../context/ToastContext';
+import { ProcessingModal } from '../components/ProcessingModal';
 
 interface JavaPaths {
     [version: string]: string;
@@ -51,6 +52,17 @@ export const Settings = () => {
     // Update states
     const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'>('idle');
     const [updateInfo, setUpdateInfo] = useState<{ version?: string; error?: string } | null>(null);
+    const [processing, setProcessing] = useState<{ message: string; subMessage?: string; progress?: number } | null>(null);
+
+    useEffect(() => {
+        const handleProgress = (_: any, data: any) => {
+            setProcessing(prev => prev ? { ...prev, subMessage: data.status, progress: data.progress } : { message: 'Importing...', subMessage: data.status, progress: data.progress });
+        };
+        window.ipcRenderer.on('instance:import-progress', handleProgress);
+        return () => {
+            window.ipcRenderer.off('instance:import-progress', handleProgress);
+        };
+    }, []);
 
     useEffect(() => {
         const loadConfig = async () => {
@@ -126,7 +138,7 @@ export const Settings = () => {
     const handleVersionImport = async (versions: any[]) => {
         if (versions.length === 0) return;
 
-        showToast(`Importing ${versions.length} versions...`, 'info');
+        setProcessing({ message: 'Importing Versions', subMessage: 'Initializing...', progress: 0 });
         try {
             const versionIds = versions.map(v => v.id);
             const result = await window.ipcRenderer.invoke('instance:import-external', versionIds);
@@ -148,6 +160,8 @@ export const Settings = () => {
         } catch (e) {
             console.error(e);
             showToast('An error occurred during import', 'error');
+        } finally {
+            setProcessing(null);
         }
     };
 
@@ -518,6 +532,14 @@ export const Settings = () => {
                 <VersionScannerModal
                     onClose={() => setShowVersionScanner(false)}
                     onImport={handleVersionImport}
+                />
+            )}
+
+            {processing && (
+                <ProcessingModal
+                    message={processing.message}
+                    subMessage={processing.subMessage}
+                    progress={processing.progress}
                 />
             )}
         </div>

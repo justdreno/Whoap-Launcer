@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../context/ConfirmContext';
 import styles from './InstanceMods.module.css';
-import { ChevronLeft, Search, Download, Trash2 } from 'lucide-react';
+import { ChevronLeft, Search, Download, Trash2, WifiOff, Lock } from 'lucide-react';
 import { Skeleton } from '../components/Skeleton';
 import { ModVersionSelector } from '../components/ModVersionSelector';
 
 interface InstanceModsProps {
     instanceId: string;
+    isOnline?: boolean;
     onBack: () => void;
 }
 
@@ -26,7 +27,7 @@ interface SearchMod {
     downloads: number;
 }
 
-export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, onBack }) => {
+export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, isOnline = true, onBack }) => {
     const [activeTab, setActiveTab] = useState<'installed' | 'browse'>('installed');
     const [installedMods, setInstalledMods] = useState<InstalledMod[]>([]);
     const [searchMods, setSearchMods] = useState<SearchMod[]>([]);
@@ -278,6 +279,18 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, onBack }
                                 </div>
                             </div>
                         ))}
+                    </div>
+                ) : !isOnline ? (
+                    <div className={styles.offlineLock}>
+                        <div className={styles.lockIcon}>
+                            <WifiOff size={40} />
+                        </div>
+                        <h3>Internet Connection Required</h3>
+                        <p>Browsing Modrinth requires an active internet connection.</p>
+                        <div className={styles.lockBadge}>
+                            <Lock size={12} />
+                            <span>Feature Locked</span>
+                        </div>
                     </div>
                 ) : (
                     <div className={styles.modList}>
