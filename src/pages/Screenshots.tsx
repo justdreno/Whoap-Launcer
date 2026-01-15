@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { PageHeader } from '../components/PageHeader';
-import { Grid, List, RefreshCw, Image as ImageIcon, Trash2, FolderOpen, Copy, Share2, Download } from 'lucide-react';
+import { Grid, List, RefreshCw, Image as ImageIcon, Trash2, FolderOpen, Copy, Share2, Download, Calendar, User, SortDesc } from 'lucide-react';
 import { Screenshot, ScreenshotApi } from '../api/screenshots';
 import { ScreenshotLightbox } from '../components/ScreenshotLightbox';
 import { ShareScreenshotModal } from '../components/ShareScreenshotModal';
+import { CustomSelect, Option } from '../components/CustomSelect';
 import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../context/ConfirmContext';
 import styles from './Screenshots.module.css';
@@ -243,40 +244,45 @@ export const Screenshots: React.FC<ScreenshotsProps> = ({ user }) => {
 
             <div className={styles.header}>
                 <div className={styles.filters}>
-                    <select
-                        className={styles.filterSelect}
+                    <CustomSelect
                         value={selectedProfile}
-                        onChange={(e) => setSelectedProfile(e.target.value)}
-                        data-testid="screenshot-profile-filter"
-                    >
-                        <option value="all">All Profiles</option>
-                        {uniqueProfiles.map(profile => (
-                            <option key={profile.id} value={profile.id}>{profile.name}</option>
-                        ))}
-                    </select>
+                        onChange={setSelectedProfile}
+                        options={[
+                            { value: 'all', label: 'All Profiles', icon: <User size={14} /> },
+                            ...uniqueProfiles.map(profile => ({
+                                value: profile.id,
+                                label: profile.name,
+                                icon: <User size={14} />
+                            }))
+                        ]}
+                        width="180px"
+                        className={styles.customFilter}
+                    />
 
-                    <select
-                        className={styles.filterSelect}
+                    <CustomSelect
                         value={dateFilter}
-                        onChange={(e) => setDateFilter(e.target.value)}
-                        data-testid="screenshot-date-filter"
-                    >
-                        <option value="all">All Time</option>
-                        <option value="today">Today</option>
-                        <option value="week">This Week</option>
-                        <option value="month">This Month</option>
-                    </select>
+                        onChange={setDateFilter}
+                        options={[
+                            { value: 'all', label: 'All Time', icon: <Calendar size={14} /> },
+                            { value: 'today', label: 'Today', icon: <Calendar size={14} /> },
+                            { value: 'week', label: 'This Week', icon: <Calendar size={14} /> },
+                            { value: 'month', label: 'This Month', icon: <Calendar size={14} /> }
+                        ]}
+                        width="160px"
+                        className={styles.customFilter}
+                    />
 
-                    <select
-                        className={styles.filterSelect}
+                    <CustomSelect
                         value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as any)}
-                        data-testid="screenshot-sort-filter"
-                    >
-                        <option value="newest">Newest First</option>
-                        <option value="oldest">Oldest First</option>
-                        <option value="name">Name (A-Z)</option>
-                    </select>
+                        onChange={(value) => setSortBy(value as any)}
+                        options={[
+                            { value: 'newest', label: 'Newest First', icon: <SortDesc size={14} /> },
+                            { value: 'oldest', label: 'Oldest First', icon: <SortDesc size={14} /> },
+                            { value: 'name', label: 'Name (A-Z)', icon: <SortDesc size={14} /> }
+                        ]}
+                        width="170px"
+                        className={styles.customFilter}
+                    />
                 </div>
 
                 <div className={styles.viewToggle}>
@@ -314,138 +320,142 @@ export const Screenshots: React.FC<ScreenshotsProps> = ({ user }) => {
                     <p>Take some screenshots in-game with F2 and they'll appear here!</p>
                 </div>
             ) : viewMode === 'grid' ? (
-                <div className={styles.gridView}>
-                    {filteredScreenshots.map((screenshot, index) => (
-                        <div
-                            key={screenshot.id}
-                            className={styles.screenshotCard}
-                            onClick={() => setLightboxIndex(index)}
-                            data-testid={`screenshot-card-${index}`}
-                        >
-                            <div className={styles.imageWrapper}>
-                                <img
-                                    src={`file://${screenshot.path}`}
-                                    alt={screenshot.filename}
-                                    className={styles.screenshot}
-                                />
-                            </div>
-                            <div className={styles.cardActions}>
-                                <button
-                                    className={styles.actionBtn}
-                                    onClick={(e) => handleCopyToClipboard(screenshot, e)}
-                                    title="Copy to Clipboard"
-                                    data-testid="copy-screenshot-btn"
-                                >
-                                    <Copy size={16} />
-                                </button>
-                                <button
-                                    className={styles.actionBtn}
-                                    onClick={(e) => handleShare(screenshot, e)}
-                                    title="Share"
-                                    data-testid="share-screenshot-btn"
-                                >
-                                    <Share2 size={16} />
-                                </button>
-                                <button
-                                    className={styles.actionBtn}
-                                    onClick={(e) => handleExport(screenshot, e)}
-                                    title="Export"
-                                    data-testid="export-screenshot-btn"
-                                >
-                                    <Download size={16} />
-                                </button>
-                                <button
-                                    className={styles.actionBtn}
-                                    onClick={(e) => handleOpenLocation(screenshot, e)}
-                                    title="Open Location"
-                                    data-testid="open-location-btn"
-                                >
-                                    <FolderOpen size={16} />
-                                </button>
-                                <button
-                                    className={styles.actionBtn}
-                                    onClick={(e) => handleDelete(screenshot, e)}
-                                    title="Delete"
-                                    data-testid="delete-screenshot-btn"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
-                            </div>
-                            <div className={styles.cardInfo}>
-                                <div className={styles.cardTitle}>{screenshot.instanceName}</div>
-                                <div className={styles.cardMeta}>
-                                    <span>{formatDate(screenshot.date)}</span>
-                                    <span>{formatSize(screenshot.size)}</span>
+                <div className={styles.screenshotsScrollContainer}>
+                    <div className={styles.gridView}>
+                        {filteredScreenshots.map((screenshot, index) => (
+                            <div
+                                key={screenshot.id}
+                                className={styles.screenshotCard}
+                                onClick={() => setLightboxIndex(index)}
+                                data-testid={`screenshot-card-${index}`}
+                            >
+                                <div className={styles.imageWrapper}>
+                                    <ScreenshotImage
+                                        screenshot={screenshot}
+                                        className={styles.screenshot}
+                                        alt={screenshot.filename}
+                                    />
+                                </div>
+                                <div className={styles.cardActions}>
+                                    <button
+                                        className={styles.actionBtn}
+                                        onClick={(e) => handleCopyToClipboard(screenshot, e)}
+                                        title="Copy to Clipboard"
+                                        data-testid="copy-screenshot-btn"
+                                    >
+                                        <Copy size={16} />
+                                    </button>
+                                    <button
+                                        className={styles.actionBtn}
+                                        onClick={(e) => handleShare(screenshot, e)}
+                                        title="Share"
+                                        data-testid="share-screenshot-btn"
+                                    >
+                                        <Share2 size={16} />
+                                    </button>
+                                    <button
+                                        className={styles.actionBtn}
+                                        onClick={(e) => handleExport(screenshot, e)}
+                                        title="Export"
+                                        data-testid="export-screenshot-btn"
+                                    >
+                                        <Download size={16} />
+                                    </button>
+                                    <button
+                                        className={styles.actionBtn}
+                                        onClick={(e) => handleOpenLocation(screenshot, e)}
+                                        title="Open Location"
+                                        data-testid="open-location-btn"
+                                    >
+                                        <FolderOpen size={16} />
+                                    </button>
+                                    <button
+                                        className={styles.actionBtn}
+                                        onClick={(e) => handleDelete(screenshot, e)}
+                                        title="Delete"
+                                        data-testid="delete-screenshot-btn"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                                <div className={styles.cardInfo}>
+                                    <div className={styles.cardTitle}>{screenshot.instanceName}</div>
+                                    <div className={styles.cardMeta}>
+                                        <span>{formatDate(screenshot.date)}</span>
+                                        <span>{formatSize(screenshot.size)}</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             ) : (
-                <div className={styles.listView}>
-                    {filteredScreenshots.map((screenshot, index) => (
-                        <div
-                            key={screenshot.id}
-                            className={styles.listItem}
-                            onClick={() => setLightboxIndex(index)}
-                            data-testid={`screenshot-list-item-${index}`}
-                        >
-                            <img
-                                src={`file://${screenshot.path}`}
-                                alt={screenshot.filename}
-                                className={styles.listThumbnail}
-                            />
-                            <div className={styles.listInfo}>
-                                <div className={styles.listTitle}>{screenshot.filename}</div>
-                                <div className={styles.listMeta}>
-                                    <span>{screenshot.instanceName}</span>
-                                    <span>•</span>
-                                    <span>{screenshot.version} • {screenshot.loader}</span>
-                                    <span>•</span>
-                                    <span>{formatDate(screenshot.date)}</span>
-                                    <span>•</span>
-                                    <span>{formatSize(screenshot.size)}</span>
+                <div className={styles.screenshotsScrollContainer}>
+                    <div className={styles.listView}>
+                        {filteredScreenshots.map((screenshot, index) => (
+                            <div
+                                key={screenshot.id}
+                                className={styles.listItem}
+                                onClick={() => setLightboxIndex(index)}
+                                data-testid={`screenshot-list-item-${index}`}
+                            >
+                                <ScreenshotImage
+                                    screenshot={screenshot}
+                                    className={styles.listThumbnail}
+                                    alt={screenshot.filename}
+                                />
+                                <div className={styles.listInfo}>
+                                    <div className={styles.listTitle}>{screenshot.filename}</div>
+                                    <div className={styles.listMeta}>
+                                        <span>{screenshot.instanceName}</span>
+                                        <span>•</span>
+                                        <span>{screenshot.version} • {screenshot.loader}</span>
+                                        <span>•</span>
+                                        <span>{formatDate(screenshot.date)}</span>
+                                        <span>•</span>
+                                        <span>{formatSize(screenshot.size)}</span>
+                                    </div>
+                                </div>
+                                <div className={styles.listActions}>
+                                    <button
+                                        className={styles.actionBtn}
+                                        onClick={(e) => handleCopyToClipboard(screenshot, e)}
+                                        title="Copy to Clipboard"
+                                    >
+                                        <Copy size={16} />
+                                    </button>
+                                    <button
+                                        className={styles.actionBtn}
+                                        onClick={(e) => handleShare(screenshot, e)}
+                                        title="Share"
+                                    >
+                                        <Share2 size={16} />
+                                    </button>
+                                    <button
+                                        className={styles.actionBtn}
+                                        onClick={(e) => handleExport(screenshot, e)}
+                                        title="Export"
+                                    >
+                                        <Download size={16} />
+                                    </button>
+                                    <button
+                                        className={styles.actionBtn}
+                                        onClick={(e) => handleOpenLocation(screenshot, e)}
+                                        title="Open Location"
+                                    >
+                                        <FolderOpen size={16} />
+                                    </button>
+                                    <button
+                                        className={styles.actionBtn}
+                                        onClick={(e) => handleDelete(screenshot, e)}
+                                        title="Delete"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
                                 </div>
                             </div>
-                            <div className={styles.listActions}>
-                                <button
-                                    className={styles.actionBtn}
-                                    onClick={(e) => handleCopyToClipboard(screenshot, e)}
-                                    title="Copy to Clipboard"
-                                >
-                                    <Copy size={16} />
-                                </button>
-                                <button
-                                    className={styles.actionBtn}
-                                    onClick={(e) => handleShare(screenshot, e)}
-                                    title="Share"
-                                >
-                                    <Share2 size={16} />
-                                </button>
-                                <button
-                                    className={styles.actionBtn}
-                                    onClick={(e) => handleExport(screenshot, e)}
-                                    title="Export"
-                                >
-                                    <Download size={16} />
-                                </button>
-                                <button
-                                    className={styles.actionBtn}
-                                    onClick={(e) => handleOpenLocation(screenshot, e)}
-                                    title="Open Location"
-                                >
-                                    <FolderOpen size={16} />
-                                </button>
-                                <button
-                                    className={styles.actionBtn}
-                                    onClick={(e) => handleDelete(screenshot, e)}
-                                    title="Delete"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             )}
 

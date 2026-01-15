@@ -1,8 +1,10 @@
 .container {
     padding: 40px;
-    max-width: 1800px;
-    margin: 0 auto;
-    min-height: 100vh;
+    height: 100%;
+    overflow-y: auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
 }
 
 .header {
@@ -20,6 +22,10 @@
     gap: 12px;
     flex-wrap: wrap;
     flex: 1;
+}
+
+.customFilter {
+    z-index: 100;
 }
 
 .filterSelect {
@@ -121,16 +127,45 @@
     color: #fff;
 }
 
+.screenshotsScrollContainer {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 8px;
+    margin-right: -8px;
+    padding-bottom: 40px;
+}
+
+.screenshotsScrollContainer::-webkit-scrollbar {
+    width: 8px;
+}
+
+.screenshotsScrollContainer::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 4px;
+}
+
+.screenshotsScrollContainer::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+}
+
+.screenshotsScrollContainer::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
 .gridView {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 20px;
+    padding-bottom: 24px;
 }
 
 .listView {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding-bottom: 24px;
 }
 
 .screenshotCard {
