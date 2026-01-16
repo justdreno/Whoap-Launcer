@@ -522,18 +522,26 @@ export class LaunchProcess {
                     `-javaagent:${authlibPath}=${AUTH_SERVER_URL}`,
                     // Enable legacy skin API for older server compatibility
                     '-Dauthlibinjector.legacySkinPolyfill=enabled',
-                    // Force skins to always load from our server
+                    // Client-side mode for skin loading
                     '-Dauthlibinjector.side=client',
-                    // Disable signature verification bypass warning (we sign everything)
+                    // Disable server name display in title
                     '-Dauthlibinjector.noShowServerName=true',
-                    // Prefetch skin data for faster loading
+                    // Enable profile key signing for multiplayer
                     '-Dauthlibinjector.profileKey.enabled=true',
                     // Disable authlib-injector update checks
                     '-Dauthlibinjector.noUpdate=true',
-                    // Disable Mojang namespace to prevent fallback to official servers
-                    '-Dauthlibinjector.mojangNamespace=disabled',
-                    // Enable skin prefetch for better performance
+                    // IMPORTANT: Allow Mojang namespace for mixed server support
+                    // This enables loading skins for premium players on the same server
+                    // while still using our auth for our users
+                    '-Dauthlibinjector.mojangNamespace=enabled',
+                    // Enable Mojang proxy for fallback skin loading
+                    '-Dauthlibinjector.mojangProxy=true',
+                    // Prefetch skins for better loading performance
                     '-Dauthlibinjector.skinPreload=true',
+                    // Don't verify texture signatures (allows custom texture servers)
+                    '-Dauthlibinjector.disableHttpd=false',
+                    // Enable debug logging for troubleshooting
+                    // '-Dauthlibinjector.debug=true',
                 ];
 
                 const jvmArgs = [

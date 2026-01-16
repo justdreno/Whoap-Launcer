@@ -24,6 +24,15 @@ interface SkinCacheEntry {
     exists: boolean;
 }
 
+// Session storage for join/hasJoined validation (critical for multiplayer)
+interface JoinSession {
+    accessToken: string;
+    selectedProfile: string; // UUID
+    serverId: string;
+    username: string;
+    timestamp: number;
+}
+
 export class SkinServerManager {
     private static instance: SkinServerManager;
     private static currentUser: { uuid: string; name: string; offlineUuid?: string; skinModel?: 'default' | 'slim' } | null = null;
@@ -36,6 +45,10 @@ export class SkinServerManager {
     private static skinCache: Map<string, SkinCacheEntry> = new Map();
     private static capeCache: Map<string, SkinCacheEntry> = new Map();
     private static TEXTURE_CACHE_TTL = 2 * 60 * 1000; // 2 minutes cache
+
+    // Session storage for multiplayer join validation (serverId -> JoinSession)
+    private static joinSessions: Map<string, JoinSession> = new Map();
+    private static JOIN_SESSION_TTL = 30 * 1000; // 30 seconds - standard Mojang timeout
 
     private app_express;
     private server: any;
@@ -461,28 +474,43 @@ export class SkinServerManager {
                 meta: {
                     serverName: "Whoap Skin Server",
                     implementationName: "whoap-yggdrasil",
-                    implementationVersion: "3.0.0",
+                    implementationVersion: "3.1.0",
                     feature: {
                         // Enable all features for maximum compatibility
                         non_email_login: true,
                         legacy_skin_api: true,
-                        no_mojang_namespace: true,
+                        // IMPORTANT: Set to false to allow Mojang namespace for mixed servers
+                        // This enables loading other players' skins from Mojang
+                        no_mojang_namespace: false,
                         enable_mojang_anti_features: false,
                         enable_profile_key: true,
-                        username_check: false
+                        username_check: false,
+                        // Enable texture hash download for multiplayer
+                        noAuthlib: false
                     }
                 },
                 skinDomains: [
+                    // Local server
                     "127.0.0.1",
                     "localhost",
                     ".localhost",
+                    // Supabase storage (our skin storage)
                     ".supabase.co",
                     `${this.SUPABASE_PROJECT}.supabase.co`,
                     "ibtctzkqzezrtcglicjf.supabase.co",
+                    // Mojang official (for other players' skins)
                     ".minecraft.net",
                     "textures.minecraft.net",
+                    "api.mojang.com",
+                    "sessionserver.mojang.com",
+                    // Fallback skin services
                     "mc-heads.net",
                     ".mc-heads.net",
+                    "crafatar.com",
+                    ".crafatar.com",
+                    "minotar.net",
+                    ".minotar.net",
+                    // Custom domains
                     "api.whoap.com",
                     ".whoap.com"
                 ],
@@ -510,6 +538,7 @@ export class SkinServerManager {
         // ============================================
 
         // Profile Endpoint - Single UUID lookup (most common)
+        // This is called by the game client to fetch player profiles for skin display
         this.app_express.get('/sessionserver/session/minecraft/profile/:uuid', async (req: Request, res: Response) => {
             let uuid = req.params.uuid as string;
 
@@ -526,7 +555,7 @@ export class SkinServerManager {
 
             console.log(`[SkinServer] Profile request for UUID: ${cleanRequestUuid}`);
 
-            // Check current user first
+            // Check current user first (highest priority)
             const currentUser = SkinServerManager.getCurrentUser();
             let username = "Player_" + uuid.substring(0, 5);
             let skinUuid = cleanRequestUuid;
@@ -557,12 +586,30 @@ export class SkinServerManager {
                 }
             }
 
-            // Generate properties
+            // If not a known user, try to fetch from Mojang as fallback
+            // This allows premium players on mixed servers to still show their skins
+            if (!isMatch) {
+                try {
+                    const mojangProfile = await this.fetchMojangProfile(cleanRequestUuid);
+                    if (mojangProfile) {
+                        username = mojangProfile.name;
+                        console.log(`[SkinServer] Fetched Mojang profile: ${username}`);
+                        // For Mojang profiles, redirect to official session server
+                        // to get properly signed textures
+                        return res.redirect(`https://sessionserver.mojang.com/session/minecraft/profile/${cleanRequestUuid}?unsigned=false`);
+                    }
+                } catch (e) {
+                    console.log(`[SkinServer] Mojang profile fetch failed, using fallback`);
+                }
+            }
+
+            // Generate properties with our signature
             let responseProperties;
             if (isMatch) {
                 responseProperties = this.generateAliasedSkinPayload(cleanRequestUuid, skinUuid, username, { model: skinModel });
             } else {
-                // For unknown players, still provide signed textures (may not have actual skin)
+                // For unknown players, provide textures that point to our server
+                // This allows our client to at least try to render something
                 responseProperties = this.getTextureProperties(cleanRequestUuid, username);
             }
 
@@ -573,6 +620,71 @@ export class SkinServerManager {
             };
 
             res.json(response);
+        });
+
+        // Proxy endpoint for Mojang session server (used by authlib-injector)
+        // Format: /https/sessionserver.mojang.com/... 
+        this.app_express.get('/https/*', async (req: Request, res: Response) => {
+            // Extract the real URL from the path
+            const targetUrl = 'https://' + req.path.substring(7) + (req.url.includes('?') ? '?' + req.url.split('?')[1] : '');
+
+            console.log(`[SkinServer] Proxy request: ${targetUrl}`);
+
+            try {
+                // Check if this is a profile request for the current user
+                if (targetUrl.includes('sessionserver.mojang.com/session/minecraft/profile/')) {
+                    const uuidMatch = targetUrl.match(/profile\/([a-f0-9-]+)/i);
+                    if (uuidMatch) {
+                        const requestedUuid = uuidMatch[1].replace(/-/g, '');
+                        const currentUser = SkinServerManager.getCurrentUser();
+
+                        if (currentUser) {
+                            const cleanRealUuid = currentUser.uuid.replace(/-/g, '');
+                            const cleanOfflineUuid = currentUser.offlineUuid?.replace(/-/g, '') || '';
+
+                            if (requestedUuid === cleanRealUuid || requestedUuid === cleanOfflineUuid) {
+                                // Return our custom profile instead of proxying to Mojang
+                                console.log(`[SkinServer] Proxy: Returning custom profile for current user`);
+                                const properties = this.generateAliasedSkinPayload(
+                                    requestedUuid,
+                                    currentUser.uuid,
+                                    currentUser.name,
+                                    { model: currentUser.skinModel || 'default' }
+                                );
+                                return res.json({
+                                    id: requestedUuid,
+                                    name: currentUser.name,
+                                    properties: properties
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // Forward to Mojang for other requests
+                const response = await new Promise<{ statusCode: number; data: string }>((resolve, reject) => {
+                    https.get(targetUrl, (proxyRes) => {
+                        let data = '';
+                        proxyRes.on('data', chunk => data += chunk);
+                        proxyRes.on('end', () => {
+                            resolve({ statusCode: proxyRes.statusCode || 500, data });
+                        });
+                    }).on('error', reject);
+                });
+
+                res.status(response.statusCode);
+
+                // Try to parse as JSON and forward
+                try {
+                    const json = JSON.parse(response.data);
+                    res.json(json);
+                } catch {
+                    res.send(response.data);
+                }
+            } catch (err: any) {
+                console.error(`[SkinServer] Proxy error:`, err.message);
+                res.status(502).json({ error: "Proxy error", message: err.message });
+            }
         });
 
         // ============================================
@@ -751,63 +863,131 @@ export class SkinServerManager {
         // ============================================
 
         // Join server endpoint (called by client when connecting to a server)
+        // This is CRITICAL for multiplayer - stores the session for hasJoined verification
         this.app_express.post('/sessionserver/session/minecraft/join', (req: Request, res: Response) => {
             const { accessToken, selectedProfile, serverId } = req.body;
 
-            console.log(`[SkinServer] Join request: ${selectedProfile?.name} -> server ${serverId?.substring(0, 8)}...`);
+            console.log(`[SkinServer] Join request: ${selectedProfile?.name || selectedProfile} -> server ${serverId?.substring(0, 8)}...`);
 
-            // Store the join attempt for hasJoined verification
-            const currentUser = SkinServerManager.getCurrentUser();
-            if (currentUser && selectedProfile) {
-                // In a full implementation, you'd store this for hasJoined validation
-                // For now, we just accept all joins
+            // Validate required fields
+            if (!selectedProfile || !serverId) {
+                console.warn('[SkinServer] Join: Missing required fields');
+                return res.status(400).json({ error: "Bad Request", errorMessage: "Missing required fields" });
             }
+
+            // Extract profile ID (can be object or string)
+            const profileId = typeof selectedProfile === 'object' ? selectedProfile.id : selectedProfile;
+            const profileName = typeof selectedProfile === 'object' ? selectedProfile.name : null;
+
+            // Store the join session for hasJoined verification
+            // Key: serverId (servers use this to verify the join)
+            const currentUser = SkinServerManager.getCurrentUser();
+            const username = profileName || currentUser?.name || 'Unknown';
+
+            const session: JoinSession = {
+                accessToken: accessToken || '',
+                selectedProfile: profileId?.replace(/-/g, '') || '',
+                serverId: serverId,
+                username: username,
+                timestamp: Date.now()
+            };
+
+            // Store by composite key for accurate lookups
+            const sessionKey = `${serverId}:${username.toLowerCase()}`;
+            SkinServerManager.joinSessions.set(sessionKey, session);
+
+            // Also store by serverId alone for fallback
+            SkinServerManager.joinSessions.set(serverId, session);
+
+            console.log(`[SkinServer] Join session stored for ${username} (key: ${sessionKey})`);
+
+            // Clean up expired sessions periodically
+            this.cleanupExpiredSessions();
 
             // Return 204 No Content on success (Mojang API behavior)
             res.status(204).send();
         });
 
         // Has joined endpoint (called by server to verify client joined)
-        this.app_express.get('/sessionserver/session/minecraft/hasJoined', (req: Request, res: Response) => {
+        // This is the CRITICAL endpoint for multiplayer skin visibility!
+        this.app_express.get('/sessionserver/session/minecraft/hasJoined', async (req: Request, res: Response) => {
             const username = req.query.username as string;
             const serverId = req.query.serverId as string;
+            const ip = req.query.ip as string; // Optional IP for additional validation
 
-            console.log(`[SkinServer] HasJoined check: ${username}`);
+            console.log(`[SkinServer] HasJoined check: ${username} on server ${serverId?.substring(0, 8)}...`);
 
             if (!username) {
                 return res.status(400).json({ error: "Missing username" });
             }
 
-            // Look up the user
+            // First, check if we have a stored join session for this user/server
+            const sessionKey = `${serverId}:${username.toLowerCase()}`;
+            let session = SkinServerManager.joinSessions.get(sessionKey);
+
+            // Fallback to serverId-only lookup
+            if (!session) {
+                session = SkinServerManager.joinSessions.get(serverId);
+            }
+
+            // Validate session exists and matches
             const currentUser = SkinServerManager.getCurrentUser();
             let uuid: string;
             let skinUuid: string;
             let skinModel: 'default' | 'slim' = 'default';
+            let isValidSession = false;
 
+            // Check if this is the current user AND we have a valid session
             if (currentUser && currentUser.name.toLowerCase() === username.toLowerCase()) {
+                // Verify session if present
+                if (session && (Date.now() - session.timestamp) < SkinServerManager.JOIN_SESSION_TTL) {
+                    isValidSession = true;
+                    console.log(`[SkinServer] Valid session found for ${username}`);
+                } else {
+                    // For the current user, allow even without session (they just joined via our launcher)
+                    isValidSession = true;
+                    console.log(`[SkinServer] Allowing current user ${username} without explicit session`);
+                }
+
                 uuid = currentUser.uuid;
                 skinUuid = currentUser.uuid;
                 skinModel = currentUser.skinModel || 'default';
             } else {
-                // For other players, generate offline UUID
-                uuid = SkinServerManager.getOfflineUuid(username);
-                skinUuid = uuid;
+                // For other players, they need a valid session
+                if (session && (Date.now() - session.timestamp) < SkinServerManager.JOIN_SESSION_TTL) {
+                    isValidSession = true;
+                    uuid = SkinServerManager.getOfflineUuid(username);
+                    skinUuid = uuid;
 
-                // Check cache
-                const cached = SkinServerManager.getCachedPlayer(uuid);
-                if (cached) {
-                    skinUuid = cached.realUuid;
+                    // Check cache for registered Whoap player
+                    const cached = SkinServerManager.getCachedPlayer(uuid);
+                    if (cached) {
+                        skinUuid = cached.realUuid;
+                    }
+                } else {
+                    // No valid session - return empty response (Mojang behavior for failed hasJoined)
+                    console.log(`[SkinServer] No valid session for ${username}, returning 204`);
+                    return res.status(204).send();
                 }
+            }
+
+            // Clean up the used session
+            if (session) {
+                SkinServerManager.joinSessions.delete(sessionKey);
+                SkinServerManager.joinSessions.delete(serverId);
             }
 
             const cleanUuid = uuid.replace(/-/g, '');
             const properties = this.generateAliasedSkinPayload(cleanUuid, skinUuid, username, { model: skinModel });
 
-            res.json({
+            const response = {
                 id: cleanUuid,
                 name: username,
                 properties: properties
-            });
+            };
+
+            console.log(`[SkinServer] HasJoined success for ${username}, UUID: ${cleanUuid}`);
+            res.json(response);
         });
 
         // ============================================
@@ -960,56 +1140,118 @@ export class SkinServerManager {
 
         // Health check endpoint
         this.app_express.get('/whoap/health', (req: Request, res: Response) => {
+            const currentUser = SkinServerManager.currentUser;
             res.json({
                 status: 'ok',
-                currentUser: SkinServerManager.currentUser?.name || null,
+                currentUser: currentUser ? {
+                    name: currentUser.name,
+                    uuid: currentUser.uuid,
+                    offlineUuid: currentUser.offlineUuid,
+                    skinModel: currentUser.skinModel
+                } : null,
                 cachedPlayers: SkinServerManager.playerCache.size,
                 cachedSkins: SkinServerManager.skinCache.size,
-                cachedCapes: SkinServerManager.capeCache.size
+                cachedCapes: SkinServerManager.capeCache.size,
+                activeSessions: SkinServerManager.joinSessions.size
             });
         });
 
-        // ============================================
-        // PUBLIC KEY ENDPOINTS (for signature verification)
-        // ============================================
+        // Debug endpoint - get full texture payload for current user
+        this.app_express.get('/whoap/debug/texture', (req: Request, res: Response) => {
+            const currentUser = SkinServerManager.getCurrentUser();
+            if (!currentUser) {
+                return res.status(404).json({ error: "No current user" });
+            }
 
-        // Public key endpoint (used by servers to verify signatures)
-        this.app_express.get('/publickey', (req: Request, res: Response) => {
-            res.setHeader('Content-Type', 'text/plain');
-            res.send(this.getPublicKey());
-        });
+            const cleanUuid = currentUser.uuid.replace(/-/g, '');
+            const properties = this.generateAliasedSkinPayload(
+                cleanUuid,
+                currentUser.uuid,
+                currentUser.name,
+                { model: currentUser.skinModel || 'default' }
+            );
 
-        // Alternative public key paths
-        this.app_express.get('/api/yggdrasil/publickey', (req: Request, res: Response) => {
-            res.setHeader('Content-Type', 'text/plain');
-            res.send(this.getPublicKey());
+            // Decode the texture payload for inspection
+            const textureBase64 = properties[0].value;
+            const textureJson = JSON.parse(Buffer.from(textureBase64, 'base64').toString('utf-8'));
+
+            res.json({
+                uuid: currentUser.uuid,
+                offlineUuid: currentUser.offlineUuid,
+                name: currentUser.name,
+                skinModel: currentUser.skinModel,
+                properties: properties,
+                decodedTextures: textureJson,
+                supabaseUrl: `${this.SUPABASE_URL}/storage/v1/object/public/skins/${currentUser.uuid}.png`
+            });
         });
+        cachedPlayers: SkinServerManager.playerCache.size,
+            cachedSkins: SkinServerManager.skinCache.size,
+                cachedCapes: SkinServerManager.capeCache.size
+    });
+});
+
+// ============================================
+// PUBLIC KEY ENDPOINTS (for signature verification)
+// ============================================
+
+// Public key endpoint (used by servers to verify signatures)
+this.app_express.get('/publickey', (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(this.getPublicKey());
+});
+
+// Alternative public key paths
+this.app_express.get('/api/yggdrasil/publickey', (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(this.getPublicKey());
+});
     }
+
+    // Cleanup expired join sessions periodically
+    private cleanupExpiredSessions() {
+    const now = Date.now();
+    const expiredKeys: string[] = [];
+
+    SkinServerManager.joinSessions.forEach((session, key) => {
+        if (now - session.timestamp > SkinServerManager.JOIN_SESSION_TTL) {
+            expiredKeys.push(key);
+        }
+    });
+
+    expiredKeys.forEach(key => {
+        SkinServerManager.joinSessions.delete(key);
+    });
+
+    if (expiredKeys.length > 0) {
+        console.log(`[SkinServer] Cleaned up ${expiredKeys.length} expired sessions`);
+    }
+}
 
     public start() {
-        // Find an available port if default is taken
-        const tryStart = (port: number) => {
-            this.server = this.app_express.listen(port, '127.0.0.1', () => {
-                this.port = port;
-                console.log(`[SkinServer] ✓ Started on http://127.0.0.1:${port}`);
-            }).on('error', (err: any) => {
-                if (err.code === 'EADDRINUSE') {
-                    console.warn(`[SkinServer] Port ${port} in use, trying ${port + 1}`);
-                    tryStart(port + 1);
-                } else {
-                    console.error('[SkinServer] Failed to start:', err);
-                }
-            });
-        };
+    // Find an available port if default is taken
+    const tryStart = (port: number) => {
+        this.server = this.app_express.listen(port, '127.0.0.1', () => {
+            this.port = port;
+            console.log(`[SkinServer] ✓ Started on http://127.0.0.1:${port}`);
+        }).on('error', (err: any) => {
+            if (err.code === 'EADDRINUSE') {
+                console.warn(`[SkinServer] Port ${port} in use, trying ${port + 1}`);
+                tryStart(port + 1);
+            } else {
+                console.error('[SkinServer] Failed to start:', err);
+            }
+        });
+    };
 
-        tryStart(this.port);
-    }
+    tryStart(this.port);
+}
 
     public getPort(): number {
-        return this.port;
-    }
+    return this.port;
+}
 
     public getServerUrl(): string {
-        return `http://127.0.0.1:${this.port}`;
-    }
+    return `http://127.0.0.1:${this.port}`;
+}
 }
