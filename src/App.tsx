@@ -38,7 +38,21 @@ function App() {
     const [activeTab, setActiveTab] = useState('home');
     const [user, setUser] = useState<any>(null);
     const [checkingSession, setCheckingSession] = useState(true);
-    const [isOnline, setIsOnline] = useState(true);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    useEffect(() => {
+        const handleStatusChange = () => {
+            setIsOnline(navigator.onLine);
+        };
+
+        window.addEventListener('online', handleStatusChange);
+        window.addEventListener('offline', handleStatusChange);
+
+        return () => {
+            window.removeEventListener('online', handleStatusChange);
+            window.removeEventListener('offline', handleStatusChange);
+        };
+    }, []);
 
     // Check for existing session on startup and listen for changes
     useEffect(() => {

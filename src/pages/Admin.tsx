@@ -222,7 +222,7 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
     const handleUpdateVersion = async () => {
         if (!newVersion) return;
         if (await confirm('Update Application Version', `Are you sure you want to change the version from v${currentVersion} to v${newVersion}? This will affect all users.`)) {
-            const success = await SystemService.updateAppVersion(newVersion, user.id || user.uuid);
+            const success = await SystemService.updateAppVersion(newVersion, user.uuid);
             if (success) {
                 setCurrentVersion(newVersion);
                 showToast('Version updated successfully!', 'success');

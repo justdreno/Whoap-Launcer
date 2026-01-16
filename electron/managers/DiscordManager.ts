@@ -31,31 +31,50 @@ export class DiscordManager {
     }
 
     private init() {
+        this.attemptConnection();
+        // Retry connection every 15 seconds if not ready
+        setInterval(() => {
+            if (!this.isReady) {
+                this.attemptConnection();
+            }
+        }, 15000);
+    }
+
+    private async attemptConnection() {
+        if (this.isReady) return;
+
         try {
-            this.rpc = new Client({ transport: 'ipc' });
+            // Re-instantiate client if it was destroyed or null
+            if (!this.rpc) {
+                this.rpc = new Client({ transport: 'ipc' });
 
-            this.rpc.on('ready', () => {
-                console.log('[Discord] RPC Ready');
-                this.isReady = true;
-                this.updatePresence({
-                    details: 'Browsing Menu',
-                    state: 'Ready to play',
-                    largeImageKey: 'logo',
-                    largeImageText: 'Whoap Launcher',
-                    startTimestamp: Date.now()
+                this.rpc.on('ready', () => {
+                    console.log('[Discord] RPC Ready');
+                    this.isReady = true;
+                    this.updatePresence({
+                        details: 'Browsing Menu',
+                        state: 'Ready to play',
+                        largeImageKey: 'logo',
+                        largeImageText: 'Whoap Launcher',
+                        startTimestamp: Date.now()
+                    });
                 });
-            });
+            }
 
-            this.rpc.login({ clientId: this.clientId }).catch(err => {
-                console.warn('[Discord] Failed to connect:', err.message);
-            });
-        } catch (err) {
-            console.error('[Discord] Initialization error:', err);
+            await this.rpc.login({ clientId: this.clientId });
+        } catch (err: any) {
+            // Connection failed, correct behavior is to just log debug and try again later
+            // We destroy the client to ensure a fresh start next attempt
+            this.rpc = null;
+            // Only log if it's not the common "connection closed" error which spans logs
+            if (err.message !== 'connection closed') {
+                console.warn('[Discord] Connection attempt failed:', err.message);
+            }
         }
     }
 
     private registerIpc() {
-        ipcMain.handle('discord:update-presence', async (_, data: PresenceData) => {
+        ipcMain.handle('discord:update-presence', async (_: any, data: PresenceData) => {
             return this.updatePresence(data);
         });
     }
@@ -68,7 +87,7 @@ export class DiscordManager {
                 ...data,
                 instance: false
             });
-        } catch (err) {
+        } catch (err: any) {
             console.error('[Discord] Failed to set activity:', err);
         }
     }
