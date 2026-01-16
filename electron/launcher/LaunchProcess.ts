@@ -534,12 +534,8 @@ export class LaunchProcess {
                     // This enables loading skins for premium players on the same server
                     // while still using our auth for our users
                     '-Dauthlibinjector.mojangNamespace=enabled',
-                    // Enable Mojang proxy for fallback skin loading
-                    '-Dauthlibinjector.mojangProxy=true',
                     // Prefetch skins for better loading performance
                     '-Dauthlibinjector.skinPreload=true',
-                    // Don't verify texture signatures (allows custom texture servers)
-                    '-Dauthlibinjector.disableHttpd=false',
                     // Enable debug logging for troubleshooting
                     // '-Dauthlibinjector.debug=true',
                 ];

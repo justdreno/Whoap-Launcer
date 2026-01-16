@@ -624,9 +624,11 @@ export class SkinServerManager {
 
         // Proxy endpoint for Mojang session server (used by authlib-injector)
         // Format: /https/sessionserver.mojang.com/... 
-        this.app_express.get('/https/*', async (req: Request, res: Response) => {
-            // Extract the real URL from the path
-            const targetUrl = 'https://' + req.path.substring(7) + (req.url.includes('?') ? '?' + req.url.split('?')[1] : '');
+        // Note: Express 5 requires named wildcard parameters
+        this.app_express.get('/https/*proxyPath', async (req: Request, res: Response) => {
+            // Extract the real URL from the path using the named parameter
+            const proxyPath = (req.params as any).proxyPath || req.params[0] || '';
+            const targetUrl = 'https://' + proxyPath + (req.url.includes('?') ? '?' + req.url.split('?')[1] : '');
 
             console.log(`[SkinServer] Proxy request: ${targetUrl}`);
 
@@ -1185,73 +1187,68 @@ export class SkinServerManager {
                 supabaseUrl: `${this.SUPABASE_URL}/storage/v1/object/public/skins/${currentUser.uuid}.png`
             });
         });
-        cachedPlayers: SkinServerManager.playerCache.size,
-            cachedSkins: SkinServerManager.skinCache.size,
-                cachedCapes: SkinServerManager.capeCache.size
-    });
-});
 
-// ============================================
-// PUBLIC KEY ENDPOINTS (for signature verification)
-// ============================================
+        // ============================================
+        // PUBLIC KEY ENDPOINTS (for signature verification)
+        // ============================================
 
-// Public key endpoint (used by servers to verify signatures)
-this.app_express.get('/publickey', (req: Request, res: Response) => {
-    res.setHeader('Content-Type', 'text/plain');
-    res.send(this.getPublicKey());
-});
+        // Public key endpoint (used by servers to verify signatures)
+        this.app_express.get('/publickey', (req: Request, res: Response) => {
+            res.setHeader('Content-Type', 'text/plain');
+            res.send(this.getPublicKey());
+        });
 
-// Alternative public key paths
-this.app_express.get('/api/yggdrasil/publickey', (req: Request, res: Response) => {
-    res.setHeader('Content-Type', 'text/plain');
-    res.send(this.getPublicKey());
-});
+        // Alternative public key paths
+        this.app_express.get('/api/yggdrasil/publickey', (req: Request, res: Response) => {
+            res.setHeader('Content-Type', 'text/plain');
+            res.send(this.getPublicKey());
+        });
     }
 
     // Cleanup expired join sessions periodically
-    private cleanupExpiredSessions() {
-    const now = Date.now();
-    const expiredKeys: string[] = [];
+    private cleanupExpiredSessions(): void {
+        const now = Date.now();
+        const expiredKeys: string[] = [];
 
-    SkinServerManager.joinSessions.forEach((session, key) => {
-        if (now - session.timestamp > SkinServerManager.JOIN_SESSION_TTL) {
-            expiredKeys.push(key);
-        }
-    });
-
-    expiredKeys.forEach(key => {
-        SkinServerManager.joinSessions.delete(key);
-    });
-
-    if (expiredKeys.length > 0) {
-        console.log(`[SkinServer] Cleaned up ${expiredKeys.length} expired sessions`);
-    }
-}
-
-    public start() {
-    // Find an available port if default is taken
-    const tryStart = (port: number) => {
-        this.server = this.app_express.listen(port, '127.0.0.1', () => {
-            this.port = port;
-            console.log(`[SkinServer] ✓ Started on http://127.0.0.1:${port}`);
-        }).on('error', (err: any) => {
-            if (err.code === 'EADDRINUSE') {
-                console.warn(`[SkinServer] Port ${port} in use, trying ${port + 1}`);
-                tryStart(port + 1);
-            } else {
-                console.error('[SkinServer] Failed to start:', err);
+        SkinServerManager.joinSessions.forEach((session, key) => {
+            if (now - session.timestamp > SkinServerManager.JOIN_SESSION_TTL) {
+                expiredKeys.push(key);
             }
         });
-    };
 
-    tryStart(this.port);
-}
+        expiredKeys.forEach(key => {
+            SkinServerManager.joinSessions.delete(key);
+        });
+
+        if (expiredKeys.length > 0) {
+            console.log(`[SkinServer] Cleaned up ${expiredKeys.length} expired sessions`);
+        }
+    }
+
+    public start(): void {
+        // Find an available port if default is taken
+        const tryStart = (port: number) => {
+            this.server = this.app_express.listen(port, '127.0.0.1', () => {
+                this.port = port;
+                console.log(`[SkinServer] ✓ Started on http://127.0.0.1:${port}`);
+            }).on('error', (err: any) => {
+                if (err.code === 'EADDRINUSE') {
+                    console.warn(`[SkinServer] Port ${port} in use, trying ${port + 1}`);
+                    tryStart(port + 1);
+                } else {
+                    console.error('[SkinServer] Failed to start:', err);
+                }
+            });
+        };
+
+        tryStart(this.port);
+    }
 
     public getPort(): number {
-    return this.port;
-}
+        return this.port;
+    }
 
     public getServerUrl(): string {
-    return `http://127.0.0.1:${this.port}`;
-}
+        return `http://127.0.0.1:${this.port}`;
+    }
 }
