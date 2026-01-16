@@ -187,7 +187,8 @@
 .imageWrapper {
     position: relative;
     width: 100%;
-    padding-top: 56.25%; /* 16:9 aspect ratio */
+    padding-top: 56.25%;
+    /* 16:9 aspect ratio */
     background: rgba(0, 0, 0, 0.4);
     overflow: hidden;
 }
@@ -337,6 +338,25 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 400px;
     color: #888;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinning svg {
+    animation: spin 1s linear infinite;
+}
+
+.syncLabel {
+    font-size: 13px;
+    font-weight: 600;
+    margin-left: 8px;
 }

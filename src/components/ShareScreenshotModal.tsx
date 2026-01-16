@@ -85,8 +85,25 @@ export const ShareScreenshotModal: React.FC<ShareScreenshotModalProps> = ({
             // Get screenshot data from electron
             const result = await ScreenshotApi.shareToCloud(screenshot.path, user.uuid);
 
-            if (!result.success || !result.publicUrl) {
+            if (!result.success || !result.publicUrl || !result.hash) {
                 throw new Error(result.error || 'Failed to prepare screenshot');
+            }
+
+            // Check for duplicate in database
+            const { data: duplicate, error: checkError } = await supabase
+                .from('shared_screenshots')
+                .select('id, url')
+                .eq('user_uuid', user.uuid)
+                .eq('hash', result.hash)
+                .maybeSingle();
+
+            if (checkError) console.error('Duplicate check error:', checkError);
+
+            if (duplicate) {
+                // If it already exists, just show success and close
+                showToast('Screenshot already uploaded to cloud!', 'info');
+                onClose();
+                return;
             }
 
             // Convert base64 to blob
@@ -122,6 +139,7 @@ export const ShareScreenshotModal: React.FC<ShareScreenshotModalProps> = ({
                     user_uuid: user.uuid,
                     filename: screenshot.filename,
                     url: publicUrl,
+                    hash: result.hash,
                     instance_name: screenshot.instanceName,
                     version: screenshot.version,
                     loader: screenshot.loader,

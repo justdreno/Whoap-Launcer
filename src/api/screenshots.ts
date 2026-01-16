@@ -32,8 +32,12 @@ export const ScreenshotApi = {
         return window.ipcRenderer.invoke('screenshots:export', path);
     },
 
-    shareToCloud: async (path: string, userId: string): Promise<{ success: boolean; publicUrl?: string; error?: string }> => {
+    shareToCloud: async (path: string, userId: string): Promise<{ success: boolean; publicUrl?: string; hash?: string; error?: string }> => {
         return window.ipcRenderer.invoke('screenshots:share-to-cloud', path, userId);
+    },
+
+    syncFromCloud: async (userId: string, cloudScreenshots: any[]): Promise<{ success: boolean; syncedCount: number; error?: string }> => {
+        return window.ipcRenderer.invoke('screenshots:sync-from-cloud', userId, cloudScreenshots);
     },
 
     getImage: async (path: string): Promise<{ success: boolean; dataUrl?: string; error?: string }> => {

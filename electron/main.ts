@@ -1,28 +1,72 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron';
 import path from 'path';
-import { AuthManager } from './managers/AuthManager';
-import { InstanceManager } from './managers/InstanceManager';
-import { ConfigManager } from './managers/ConfigManager';
-import { ModsManager } from './managers/ModsManager';
-import { ModpackManager } from './managers/ModpackManager';
-import { SkinServerManager } from './managers/SkinServerManager';
-import { LogWindowManager } from './managers/LogWindowManager';
-import { AutoUpdateManager } from './managers/AutoUpdateManager';
-import { ScreenshotManager } from './managers/ScreenshotManager';
-import { NetworkManager } from './managers/NetworkManager';
-import { LaunchProcess } from './launcher/LaunchProcess';
 
-let mainWindow: BrowserWindow | null = null;
+// Managers Import
+import { AuthManager } from './managers/AuthManager';
+import { SkinServerManager } from './managers/SkinServerManager';
+import { InstanceManager } from './managers/InstanceManager';
+import { VersionManager } from './launcher/VersionManager';
+import { LaunchProcess } from './launcher/LaunchProcess';
+import { ConfigManager } from './managers/ConfigManager';
+import { LogWindowManager } from './managers/LogWindowManager';
+import { CloudManager } from './managers/CloudManager';
+import { ModpackManager } from './managers/ModpackManager';
+import { ModsManager } from './managers/ModsManager';
+import { NetworkManager } from './managers/NetworkManager';
+import { AutoUpdateManager } from './managers/AutoUpdateManager';
+import { DiscordManager } from './managers/DiscordManager';
+import { ScreenshotManager } from './managers/ScreenshotManager';
+
+// Paths Configuration
+process.env.DIST = path.join(__dirname, '../dist-react');
+process.env.PUBLIC = app.isPackaged ? process.env.DIST! : path.join(process.env.DIST!, '../public');
+
+const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
+
+let win: BrowserWindow | null = null;
+let splash: BrowserWindow | null = null;
+let tray: Tray | null = null;
 let skinServer: SkinServerManager | null = null;
 
-async function createWindow() {
-    mainWindow = new BrowserWindow({
-        width: 1100,
-        height: 700,
+// --- 1. Create Splash Screen ---
+function createSplashWindow() {
+    splash = new BrowserWindow({
+        width: 300, // Compact Size
+        height: 350,
+        transparent: true,
+        frame: false,
+        alwaysOnTop: true,
+        resizable: false,
+        skipTaskbar: true,
+        icon: getIconPath(),
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true
+        }
+    });
+
+    // Load splash.html from public folder
+    const splashUrl = VITE_DEV_SERVER_URL
+        ? path.join(__dirname, '../public/splash.html')
+        : path.join(process.env.DIST!, 'splash.html');
+
+    splash.loadFile(splashUrl);
+
+    console.log('[Main] Splash screen created');
+}
+
+// --- 2. Create Main Window ---
+function createMainWindow() {
+    win = new BrowserWindow({
+        width: 1200,
+        height: 800,
         minWidth: 900,
         minHeight: 600,
-        frame: false,
-        backgroundColor: '#000000',
+        show: false, // Hide initially (wait for splash)
+        frame: false, // Custom Titlebar
+        transparent: true,
+        backgroundColor: '#00000000', // Transparent bg for rounded corners
+        icon: getIconPath(),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -31,98 +75,157 @@ async function createWindow() {
         }
     });
 
-    // Development vs Production URL
-    if (process.env.VITE_DEV_SERVER_URL) {
-        mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+    if (VITE_DEV_SERVER_URL) {
+        win.loadURL(VITE_DEV_SERVER_URL);
     } else {
-        mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+        win.loadFile(path.join(process.env.DIST!, 'index.html'));
     }
 
-    // Window Management IPC
-    ipcMain.on('window:minimize', () => mainWindow?.minimize());
-    ipcMain.on('window:maximize', () => {
-        if (mainWindow?.isMaximized()) {
-            mainWindow.unmaximize();
-        } else {
-            mainWindow?.maximize();
-        }
-    });
-    ipcMain.on('window:close', () => mainWindow?.close());
+    // When Main Window is Ready
+    win.once('ready-to-show', () => {
+        // Wait a bit for aesthetics (optional) then swap
+        setTimeout(() => {
+            splash?.destroy();
+            splash = null;
+            win?.show();
+            win?.focus();
 
-    // Also support legacy channel names (window-minimize, etc.)
-    ipcMain.on('window-minimize', () => mainWindow?.minimize());
-    ipcMain.on('window-maximize', () => {
-        if (mainWindow?.isMaximized()) {
-            mainWindow.unmaximize();
-        } else {
-            mainWindow?.maximize();
-        }
-    });
-    ipcMain.on('window-close', () => mainWindow?.close());
-
-    // Notify renderer of maximize state changes
-    mainWindow.on('maximize', () => {
-        mainWindow?.webContents.send('window:maximized-changed', true);
-    });
-    mainWindow.on('unmaximize', () => {
-        mainWindow?.webContents.send('window:maximized-changed', false);
+            // Check updates after launch
+            AutoUpdateManager.getInstance().setMainWindow(win!);
+            AutoUpdateManager.getInstance().checkForUpdatesOnStartup();
+        }, 1500);
     });
 
-    // Skin Server Info IPC
-    ipcMain.handle('skin:get-server-info', () => {
-        return {
-            url: skinServer?.getServerUrl() || 'http://127.0.0.1:25500',
-            port: skinServer?.getPort() || 25500
-        };
-    });
+    // Window Events
+    win.on('maximize', () => win?.webContents.send('window:maximized-changed', true));
+    win.on('unmaximize', () => win?.webContents.send('window:maximized-changed', false));
+    win.on('closed', () => { win = null; });
+}
 
-    mainWindow.on('closed', () => {
-        mainWindow = null;
+// --- Helper: Get Icon Path ---
+function getIconPath() {
+    return app.isPackaged
+        ? path.join(process.resourcesPath, 'icon.png')
+        : path.join(__dirname, '../src/assets/logo.png');
+}
+
+// --- 3. Tray Icon ---
+function createTray() {
+    const icon = nativeImage.createFromPath(getIconPath()).resize({ width: 16, height: 16 });
+    tray = new Tray(icon);
+
+    const contextMenu = Menu.buildFromTemplate([
+        { label: 'Show Launcher', click: () => win?.show() },
+        { label: 'Quit', click: () => app.quit() }
+    ]);
+
+    tray.setToolTip('Whoap Launcher');
+    tray.setContextMenu(contextMenu);
+    tray.on('click', () => {
+        if (!win) return;
+        win.isVisible() ? win.hide() : win.show();
     });
 }
 
-// Ensure single instance
+// --- 4. App Lifecycle ---
 if (!app.requestSingleInstanceLock()) {
     app.quit();
 } else {
     app.on('second-instance', () => {
-        if (mainWindow) {
-            if (mainWindow.isMinimized()) mainWindow.restore();
-            mainWindow.focus();
+        if (win) {
+            if (win.isMinimized()) win.restore();
+            win.focus();
         }
     });
 
-    app.whenReady().then(() => {
-        // Initialize Managers
-        new AuthManager();
-        InstanceManager.getInstance();
+    app.whenReady().then(async () => {
+        // Initialize Core Managers
         new ConfigManager();
-        new ModsManager();
-        new ModpackManager();
+        new AuthManager();
+        skinServer = new SkinServerManager(); // Start Skin Server
+        InstanceManager.getInstance();
+        new VersionManager();
         new LaunchProcess();
-        new ScreenshotManager();
-        new NetworkManager();
         new LogWindowManager();
+        new ModpackManager();
+        new ModsManager();
+        new NetworkManager();
+        new ScreenshotManager();
+        CloudManager.getInstance();
+        DiscordManager.getInstance();
 
-        // Start Skin Server
-        skinServer = new SkinServerManager();
+        // Register IPC Handlers
+        registerIpcHandlers();
 
-        // Auto Update
-        const autoUpdate = AutoUpdateManager.getInstance();
-        autoUpdate.setMainWindow(mainWindow!);
-
-        createWindow();
+        // Start UI Flow
+        createSplashWindow(); // Show splash immediately
+        createMainWindow();   // Load main app in background
+        createTray();
     });
 }
 
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
+    if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('activate', () => {
-    if (mainWindow === null) {
-        createWindow();
-    }
-});
+// --- 5. IPC Handlers ---
+function registerIpcHandlers() {
+    // Window Controls
+    ipcMain.on('window:minimize', () => win?.minimize());
+    ipcMain.on('window:maximize', () => {
+        if (!win) return;
+        win.isMaximized() ? win.unmaximize() : win.maximize();
+    });
+    ipcMain.on('window:close', () => win?.close());
+
+    // Legacy Support (just in case)
+    ipcMain.on('window-minimize', () => win?.minimize());
+    ipcMain.on('window-maximize', () => {
+        if (!win) return;
+        win.isMaximized() ? win.unmaximize() : win.maximize();
+    });
+    ipcMain.on('window-close', () => win?.close());
+
+    // App Reset
+    ipcMain.handle('app:reset', async (_, mode: 'database' | 'full' = 'database') => {
+        const userDataPath = app.getPath('userData');
+        const fs = require('fs');
+
+        try {
+            ['auth.json', 'config.json', 'favorites.json', 'whoap-config.json'].forEach(file => {
+                const f = path.join(userDataPath, file);
+                if (fs.existsSync(f)) fs.unlinkSync(f);
+            });
+
+            if (mode === 'full') {
+                const instancesPath = path.join(userDataPath, 'instances');
+                if (fs.existsSync(instancesPath)) fs.rmSync(instancesPath, { recursive: true, force: true });
+            }
+
+            app.relaunch();
+            app.exit(0);
+            return { success: true };
+        } catch (e) {
+            return { success: false, error: String(e) };
+        }
+    });
+
+    // Skin Server Info
+    ipcMain.handle('skin:get-server-info', async () => {
+        return {
+            url: skinServer?.getServerUrl() || `http://127.0.0.1:25500`,
+            port: skinServer?.getPort() || 25500,
+            multiplayerEnabled: true
+        };
+    });
+
+    // Register Player (Whoap Multiplayer Visibility)
+    ipcMain.handle('skin:register-player', async (_, data) => {
+        try {
+            SkinServerManager.registerPlayer(data.uuid, data.name, data.realUuid);
+            return { success: true };
+        } catch (e) {
+            return { success: false, error: String(e) };
+        }
+    });
+}

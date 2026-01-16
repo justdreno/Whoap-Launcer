@@ -9,6 +9,7 @@ import { ConfigManager } from '../managers/ConfigManager';
 import { LogWindowManager } from '../managers/LogWindowManager';
 import { CloudManager } from '../managers/CloudManager';
 import { SkinServerManager } from '../managers/SkinServerManager';
+import { DiscordManager } from '../managers/DiscordManager';
 
 export class LaunchProcess {
     private downloader: AssetDownloader;
@@ -56,6 +57,15 @@ export class LaunchProcess {
             } catch (e) {
                 console.error("[Launch] Failed to trigger cloud sync", e);
             }
+
+            // Update Discord Presence
+            DiscordManager.getInstance().updatePresence({
+                details: `Launching ${instanceId}`,
+                state: `Preparing version ${versionId}...`,
+                largeImageKey: 'logo',
+                largeImageText: 'Whoap Launcher',
+                startTimestamp: Date.now()
+            });
 
             // Window Management
             const mainWindow = BrowserWindow.fromWebContents(event.sender);
@@ -349,6 +359,13 @@ export class LaunchProcess {
 
                 // 3. Start Downloads
                 if (downloads.length > 0) {
+                    DiscordManager.getInstance().updatePresence({
+                        details: `Launching ${instanceId}`,
+                        state: 'Downloading game files...',
+                        largeImageKey: 'logo',
+                        largeImageText: 'Whoap Launcher',
+                    });
+
                     event.sender.send('launch:progress', { status: 'Downloading files...', progress: 0, total: downloads.length });
                     this.downloader.addToQueue(downloads);
 
@@ -597,6 +614,14 @@ export class LaunchProcess {
                     javaPath = javaPath.replace('java.exe', 'javaw.exe');
                 }
 
+                DiscordManager.getInstance().updatePresence({
+                    details: `Playing ${instanceId}`,
+                    state: `Version ${versionId}`,
+                    largeImageKey: 'logo',
+                    largeImageText: 'Whoap Launcher',
+                    startTimestamp: Date.now()
+                });
+
                 const gameProcess = spawn(javaPath, jvmArgs, {
                     cwd: instancePath,
                     detached: false, // Keep attached to main process to avoid new terminal window
@@ -648,6 +673,15 @@ export class LaunchProcess {
                     // Show Launcher
                     mainWindow?.show();
                     mainWindow?.focus();
+
+                    // Restore Menu Presence
+                    DiscordManager.getInstance().updatePresence({
+                        details: 'Browsing Menu',
+                        state: 'Ready to play',
+                        largeImageKey: 'logo',
+                        largeImageText: 'Whoap Launcher',
+                        startTimestamp: Date.now()
+                    });
                 });
 
                 gameProcess.unref();

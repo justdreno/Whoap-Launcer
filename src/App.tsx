@@ -1,6 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { MainLayout } from './layouts/MainLayout'
-import { LoadingScreen } from './components/LoadingScreen'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ToastProvider } from './context/ToastContext'
 import { Toaster } from 'react-hot-toast'
@@ -36,7 +35,6 @@ const PageLoader = () => (
 );
 
 function App() {
-    const [showSplash, setShowSplash] = useState(true);
     const [activeTab, setActiveTab] = useState('home');
     const [user, setUser] = useState<any>(null);
     const [checkingSession, setCheckingSession] = useState(true);
@@ -146,12 +144,8 @@ function App() {
         setUser(null);
     };
 
-    if (showSplash) {
-        // Only ready to dismiss when checkingSession is DONE (false)
-        return <LoadingScreen isReady={!checkingSession} onComplete={(online) => {
-            setIsOnline(online);
-            setShowSplash(false);
-        }} />;
+    if (checkingSession) {
+        return <PageLoader />;
     }
 
     if (!user) {

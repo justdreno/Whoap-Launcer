@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whoap Launcher</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+            user-select: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .splash-card {
+            width: 260px;
+            height: 300px;
+            background: linear-gradient(165deg, #1a1a1f 0%, #111114 100%);
+            border: 1px solid rgba(255, 140, 0, 0.15);
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+            position: relative;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 24px;
+            filter: drop-shadow(0 0 20px rgba(255, 140, 0, 0.3));
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        .loader {
+            width: 120px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .bar {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 40%;
+            background: #ff8800;
+            border-radius: 4px;
+            animation: slide 1.5s infinite ease-in-out;
+            box-shadow: 0 0 10px #ff8800;
+        }
+
+        h2 {
+            color: white;
+            font-size: 18px;
+            margin: 0;
+            margin-bottom: 8px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        p {
+            color: #666;
+            font-size: 12px;
+            margin: 0;
+            margin-bottom: 30px;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.05);
+                opacity: 0.9;
+            }
+        }
+
+        @keyframes slide {
+            0% {
+                left: -40%;
+            }
+
+            50% {
+                left: 100%;
+            }
+
+            100% {
+                left: -40%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="splash-card">
+        <!-- Make sure logo.png is in public folder -->
+        <img src="logo.png" class="logo" alt="Logo">
+        <h2>Whoap</h2>
+        <p>Loading components...</p>
+        <div class="loader">
+            <div class="bar"></div>
+        </div>
+    </div>
+</body>
+
+</html>

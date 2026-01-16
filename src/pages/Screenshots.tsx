@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../components/PageHeader';
-import { Grid, List, RefreshCw, Image as ImageIcon, Trash2, FolderOpen, Copy, Share2, Download, Calendar, User, SortDesc } from 'lucide-react';
+import { Grid, List, RefreshCw, Image as ImageIcon, Trash2, FolderOpen, Copy, Share2, Download, Calendar, User, SortDesc, CloudDownload } from 'lucide-react';
 import { Screenshot, ScreenshotApi } from '../api/screenshots';
 import { ScreenshotLightbox } from '../components/ScreenshotLightbox';
 import { ShareScreenshotModal } from '../components/ShareScreenshotModal';
@@ -8,6 +8,7 @@ import { ScreenshotImage } from '../components/ScreenshotImage';
 import { CustomSelect } from '../components/CustomSelect';
 import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../context/ConfirmContext';
+import { supabase } from '../lib/supabase';
 import styles from './Screenshots.module.css';
 
 interface ScreenshotsProps {
@@ -18,6 +19,7 @@ export const Screenshots: React.FC<ScreenshotsProps> = ({ user }) => {
     const [screenshots, setScreenshots] = useState<Screenshot[]>([]);
     const [filteredScreenshots, setFilteredScreenshots] = useState<Screenshot[]>([]);
     const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [selectedProfile, setSelectedProfile] = useState<string>('all');
     const [dateFilter, setDateFilter] = useState<string>('all');
@@ -45,6 +47,48 @@ export const Screenshots: React.FC<ScreenshotsProps> = ({ user }) => {
             showToast('Failed to load screenshots', 'error');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSync = async () => {
+        if (!user || user.type !== 'whoap') {
+            showToast('Sync is only available for Whoap accounts', 'error');
+            return;
+        }
+
+        setSyncing(true);
+        try {
+            // 1. Fetch cloud metadata from Supabase
+            const { data: cloudData, error: cloudError } = await supabase
+                .from('shared_screenshots')
+                .select('url, hash, filename')
+                .eq('user_uuid', user.uuid);
+
+            if (cloudError) throw cloudError;
+
+            if (!cloudData || cloudData.length === 0) {
+                showToast('No screenshots found in cloud', 'info');
+                return;
+            }
+
+            // 2. Trigger electron to download missing ones
+            const result = await ScreenshotApi.syncFromCloud(user.uuid, cloudData);
+
+            if (result.success) {
+                if (result.syncedCount > 0) {
+                    showToast(`Synced ${result.syncedCount} new screenshot(s) from cloud`, 'success');
+                    loadScreenshots(); // Reload list
+                } else {
+                    showToast('Everything is already in sync', 'success');
+                }
+            } else {
+                showToast(result.error || 'Sync failed', 'error');
+            }
+        } catch (error) {
+            console.error('Sync error:', error);
+            showToast('Failed to sync from cloud', 'error');
+        } finally {
+            setSyncing(false);
         }
     };
 
@@ -256,6 +300,17 @@ export const Screenshots: React.FC<ScreenshotsProps> = ({ user }) => {
 
                 <button className={styles.refreshBtn} onClick={loadScreenshots} data-testid="refresh-screenshots-btn">
                     <RefreshCw size={18} />
+                </button>
+
+                <button
+                    className={`${styles.refreshBtn} ${syncing ? styles.spinning : ''}`}
+                    onClick={handleSync}
+                    disabled={syncing}
+                    title="Sync from Cloud"
+                    data-testid="sync-screenshots-btn"
+                >
+                    <CloudDownload size={18} />
+                    {syncing && <span className={styles.syncLabel}>Syncing...</span>}
                 </button>
             </div>
 
