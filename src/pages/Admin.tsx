@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import styles from './Admin.module.css';
-import { Shield, Users, Newspaper, Award, Plus, Trash2, Ban, UserCheck, Save, LayoutDashboard } from 'lucide-react';
+import { Shield, Users, Newspaper, Award, Plus, Trash2, Ban, UserCheck, Save, LayoutDashboard, Settings, GitBranch } from 'lucide-react';
 import { ProfileService, UserProfile, Badge as BadgeType } from '../services/ProfileService';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../context/ToastContext';
 import { useConfirm, usePrompt } from '../context/ConfirmContext';
 import { useAuth } from '../context/AuthContext';
 import { CustomSelect } from '../components/CustomSelect';
+import { SystemService } from '../services/SystemService';
+import { ContentManager, ChangelogItem } from '../utils/ContentManager';
 
 interface AdminProps {
     user: {
@@ -39,7 +41,7 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
     };
 
     // State definitions
-    const [activeSection, setActiveSection] = useState<'badges' | 'users' | 'news'>('badges');
+    const [activeSection, setActiveSection] = useState<'badges' | 'users' | 'news' | 'system'>('badges');
     const [isAdmin, setIsAdmin] = useState(false);
     const [loading, setLoading] = useState(true);
     const { showToast } = useToast();
@@ -50,6 +52,9 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
     const [badges, setBadges] = useState<BadgeType[]>([]);
     const [users, setUsers] = useState<UserProfile[]>([]);
     const [news, setNews] = useState<NewsItem[]>([]);
+    const [changelogs, setChangelogs] = useState<ChangelogItem[]>([]);
+    const [currentVersion, setCurrentVersion] = useState('');
+    const [newVersion, setNewVersion] = useState('');
 
     // Form State
     const [newBadge, setNewBadge] = useState({ name: '', description: '', icon: 'Shield', color: '#ff9f43' });
@@ -57,6 +62,9 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
 
     const [newNews, setNewNews] = useState({ title: '', content: '', category: 'update', image_url: '', color: '#ff8800', version: '' });
     const [showNewsForm, setShowNewsForm] = useState(false);
+
+    const [newChangelog, setNewChangelog] = useState<{ version: string, description: string, type: 'release' | 'beta' | 'hotfix' }>({ version: '', description: '', type: 'release' });
+    const [showChangelogForm, setShowChangelogForm] = useState(false);
 
     const [grantForm, setGrantForm] = useState({ userId: '', badgeId: '' });
 
@@ -87,12 +95,23 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
         ]);
         setBadges(badgesData);
         setUsers(usersData);
-        await loadNews();
+        await Promise.all([loadNews(), loadChangelogs(), loadSystemConfig()]);
     };
 
     const loadNews = async () => {
         const { data } = await supabase.from('news').select('*').order('created_at', { ascending: false });
         setNews(data || []);
+    };
+
+    const loadChangelogs = async () => {
+        const data = await ContentManager.fetchChangelogs();
+        setChangelogs(data);
+    };
+
+    const loadSystemConfig = async () => {
+        const version = await SystemService.getAppVersion();
+        setCurrentVersion(version);
+        setNewVersion(version);
     };
 
     // --- Badge Handlers ---
@@ -199,6 +218,45 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
         }
     };
 
+    // --- System Handlers ---
+    const handleUpdateVersion = async () => {
+        if (!newVersion) return;
+        if (await confirm('Update Application Version', `Are you sure you want to change the version from v${currentVersion} to v${newVersion}? This will affect all users.`)) {
+            const success = await SystemService.updateAppVersion(newVersion, user.id || user.uuid);
+            if (success) {
+                setCurrentVersion(newVersion);
+                showToast('Version updated successfully!', 'success');
+            } else {
+                showToast('Failed to update version', 'error');
+            }
+        }
+    };
+
+    // --- Changelog Handlers ---
+    const handleCreateChangelog = async () => {
+        if (!newChangelog.version || !newChangelog.description) return showToast('Fill all fields', 'error');
+
+        const result = await ContentManager.createChangelog(newChangelog);
+        if (result) {
+            showToast('Changelog posted!', 'success');
+            setChangelogs([result, ...changelogs]);
+            setNewChangelog({ version: '', description: '', type: 'release' });
+            setShowChangelogForm(false);
+        } else {
+            showToast('Failed to post changelog', 'error');
+        }
+    };
+
+    const handleDeleteChangelog = async (id: string) => {
+        if (await confirm('Delete Changelog', 'Are you sure?', { isDanger: true })) {
+            const success = await ContentManager.deleteChangelog(id);
+            if (success) {
+                setChangelogs(changelogs.filter(c => c.id !== id));
+                showToast('Changelog deleted', 'success');
+            }
+        }
+    };
+
     if (loading) return <div className={styles.loading}>Loading Admin Panel...</div>;
     if (!isAdmin) return (
         <div className={styles.container}>
@@ -229,6 +287,9 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
                     </button>
                     <button className={`${styles.navItem} ${activeSection === 'news' ? styles.active : ''}`} onClick={() => setActiveSection('news')}>
                         <Newspaper size={18} /> News
+                    </button>
+                    <button className={`${styles.navItem} ${activeSection === 'system' ? styles.active : ''}`} onClick={() => setActiveSection('system')}>
+                        <Settings size={18} /> System
                     </button>
                 </nav>
             </div>
@@ -360,9 +421,14 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
                 {activeSection === 'news' && (
                     <>
                         <div className={styles.sectionHeader}>
-                            <button className={styles.actionBtn} onClick={() => setShowNewsForm(!showNewsForm)}>
-                                <Plus size={18} /> New Post
-                            </button>
+                            <div style={{ display: 'flex', gap: 12 }}>
+                                <button className={styles.actionBtn} onClick={() => { setShowNewsForm(!showNewsForm); setShowChangelogForm(false); }}>
+                                    <Plus size={18} /> New News Post
+                                </button>
+                                <button className={styles.actionBtn} style={{ background: '#222', border: '1px solid #444', color: 'white' }} onClick={() => { setShowChangelogForm(!showChangelogForm); setShowNewsForm(false); }}>
+                                    <GitBranch size={18} /> New Changelog
+                                </button>
+                            </div>
                         </div>
 
                         {showNewsForm && (
@@ -401,7 +467,31 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
                             </div>
                         )}
 
+                        {showChangelogForm && (
+                            <div className={styles.formCard}>
+                                <h3>Create Changelog</h3>
+                                <div className={styles.formGrid}>
+                                    <input className={styles.input} placeholder="Version (e.g. 1.0.2)" value={newChangelog.version} onChange={e => setNewChangelog({ ...newChangelog, version: e.target.value })} />
+                                    <CustomSelect
+                                        value={newChangelog.type}
+                                        onChange={(val) => setNewChangelog({ ...newChangelog, type: val as any })}
+                                        options={[
+                                            { value: 'release', label: 'Release' },
+                                            { value: 'beta', label: 'Beta' },
+                                            { value: 'hotfix', label: 'Hotfix' },
+                                        ]}
+                                    />
+                                </div>
+                                <textarea className={styles.textarea} rows={4} placeholder="Description (Markdown supported)" value={newChangelog.description} onChange={e => setNewChangelog({ ...newChangelog, description: e.target.value })} />
+                                <button className={styles.actionBtn} style={{ marginTop: 16 }} onClick={handleCreateChangelog}><Save size={16} /> Save Changelog</button>
+                            </div>
+                        )}
+
                         <div className={styles.grid}>
+                            {/* News List */}
+                            <div style={{ gridColumn: '1 / -1' }}>
+                                <h4 style={{ margin: '10px 0', opacity: 0.5, fontSize: '12px', textTransform: 'uppercase' }}>News Articles</h4>
+                            </div>
                             {news.map(item => (
                                 <div key={item.id} className={styles.card} style={{ borderLeft: `4px solid ${item.color || '#ff8800'}` }}>
                                     <div className={styles.cardContent}>
@@ -415,8 +505,71 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
                                     </div>
                                 </div>
                             ))}
+
+                            {/* Changelog List */}
+                            <div style={{ gridColumn: '1 / -1', marginTop: 20 }}>
+                                <h4 style={{ margin: '10px 0', opacity: 0.5, fontSize: '12px', textTransform: 'uppercase' }}>Recent Changelogs</h4>
+                            </div>
+                            {changelogs.map(log => (
+                                <div key={log.id} className={styles.card}>
+                                    <div className={styles.cardContent}>
+                                        <span className={styles.cardTitle}>v{log.version} <span className={styles.typeTag}>{log.type}</span></span>
+                                        <span className={styles.cardSub}>{new Date(log.date).toLocaleDateString()}</span>
+                                    </div>
+                                    <div className={styles.cardActions}>
+                                        <button className={`${styles.iconBtn} ${styles.danger}`} onClick={() => handleDeleteChangelog(log.id)}>
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </>
+                )}
+
+                {activeSection === 'system' && (
+                    <div className={styles.systemSection}>
+                        <div className={styles.sectionHeader}>
+                            <h2 className={styles.pageTitle}>System Configuration</h2>
+                        </div>
+
+                        <div className={styles.card} style={{ maxWidth: '500px' }}>
+                            <div className={styles.cardContent}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                                    <Settings size={24} color="#ff8800" />
+                                    <span className={styles.cardTitle}>Application Version</span>
+                                </div>
+                                <p style={{ color: '#888', fontSize: '14px', marginBottom: 20 }}>
+                                    Updating the version here will reflect across the TitleBar, Splash screen, and other areas for all users.
+                                </p>
+
+                                <div className={styles.versionManager}>
+                                    <div className={styles.versionDisplay}>
+                                        <span style={{ fontSize: '12px', color: '#666', textTransform: 'uppercase' }}>Current</span>
+                                        <span style={{ fontSize: '24px', fontWeight: 800, color: '#fff' }}>v{currentVersion}</span>
+                                    </div>
+                                    <div className={styles.versionInputGroup}>
+                                        <input
+                                            className={styles.input}
+                                            placeholder="New Version (e.g. 1.0.1)"
+                                            value={newVersion}
+                                            onChange={e => setNewVersion(e.target.value)}
+                                        />
+                                        <button className={styles.actionBtn} onClick={handleUpdateVersion}>
+                                            <Save size={18} /> Update
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={styles.card} style={{ marginTop: 24 }}>
+                            <div className={styles.cardContent}>
+                                <span className={styles.cardTitle}>Global Settings</span>
+                                <p style={{ color: '#666', fontSize: '13px' }}>More system configuration options will be available here in the future.</p>
+                            </div>
+                        </div>
+                    </div>
                 )}
 
             </div>

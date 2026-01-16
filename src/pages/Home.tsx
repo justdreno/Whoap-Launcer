@@ -268,7 +268,6 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
                                     setShowCreateModal(true);
                                     return;
                                 }
-                                console.log('Launch button clicked, selectedInstance:', selectedInstance);
                                 if (selectedInstance) {
                                     await InstanceApi.updateLastPlayed(selectedInstance.id);
                                     handleLaunch();
@@ -305,7 +304,6 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
                         onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log('[Home] Skin clicked - Opening Modal');
                             setShowSkinModal(true);
                         }}
                     >

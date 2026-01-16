@@ -15,14 +15,16 @@
     position: relative;
     background: #1a1a1a;
     border-radius: 24px;
-    padding: 40px 48px 60px 48px;
+    padding: 40px 48px 100px 48px;
+    /* More bottom padding for button */
     /* Extra bottom padding for the button */
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
     align-items: flex-start;
     border: 1px solid #333;
-    min-height: 280px;
+    min-height: 380px;
+    /* Brining it back to a robust size */
     height: auto !important;
     overflow: visible;
 }
@@ -198,11 +200,12 @@
 .skinContainer {
     position: absolute;
     right: 20px;
-    bottom: 0;
-    height: 90%;
-    width: 220px;
-    /* Explicit width for clickable area */
-    max-height: 480px;
+    bottom: -10px;
+    /* Pop out from the bottom slightly */
+    height: 105%;
+    /* Much larger skin */
+    width: 260px;
+    /* Wider clickable area */
     z-index: 1000 !important;
     /* Above everything else in the hero */
     cursor: pointer;

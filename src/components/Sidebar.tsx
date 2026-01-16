@@ -34,17 +34,36 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
     const currentRole = roleConfig[role] || roleConfig.user;
     const RankIcon = currentRole.icon;
 
-    const tabs = [
-        { id: 'home', label: 'Home', icon: Home },
-        { id: 'profiles', label: 'Profiles', icon: Folder },
-        { id: 'screenshots', label: 'Screenshots', icon: Image },
-        { id: 'mods', label: 'Mods', icon: Package },
-        { id: 'modpacks', label: 'Modpacks', icon: Globe },
-        { id: 'friends', label: 'Friends', icon: Users, beta: true },
-        { id: 'news', label: 'News', icon: Newspaper },
-        { id: 'settings', label: 'Settings', icon: Settings },
-        // Admin tab - only visible to developers/admins
-        ...(role === 'developer' || role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: ShieldAlert }] : []),
+    const categories = [
+        {
+            name: 'General',
+            tabs: [
+                { id: 'home', label: 'Home', icon: Home },
+                { id: 'profiles', label: 'Profiles', icon: Folder },
+                { id: 'news', label: 'News', icon: Newspaper },
+            ]
+        },
+        {
+            name: 'Library',
+            tabs: [
+                { id: 'mods', label: 'Mods', icon: Package },
+                { id: 'modpacks', label: 'Modpacks', icon: Globe },
+                { id: 'screenshots', label: 'Screenshots', icon: Image },
+            ]
+        },
+        {
+            name: 'Community',
+            tabs: [
+                { id: 'friends', label: 'Friends', icon: Users, beta: true },
+            ]
+        },
+        {
+            name: 'System',
+            tabs: [
+                { id: 'settings', label: 'Settings', icon: Settings },
+                ...(role === 'developer' || role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: ShieldAlert }] : []),
+            ]
+        }
     ];
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -60,7 +79,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
         }
 
         try {
-            console.log('Uploading skin for', user.uuid);
             const { error } = await supabase.storage
                 .from('skins')
                 .upload(`${user.uuid}.png`, file, {
@@ -103,26 +121,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
             </div>
 
             <nav className={styles.nav}>
-                {tabs.map((tab) => {
-                    const Icon = tab.icon;
-                    const isActive = activeTab === tab.id;
-                    return (
-                        <button
-                            key={tab.id}
-                            className={`${styles.navItem} ${isActive ? styles.active : ''}`}
-                            onClick={() => onTabChange(tab.id)}
-                        >
-                            <span className={styles.icon}>
-                                <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-                            </span>
-                            <span className={styles.label}>
-                                {tab.label}
-                                {tab.beta && <span className={styles.betaBadge}>BETA</span>}
-                            </span>
-                            {isActive && <div className={styles.activeIndicator} />}
-                        </button>
-                    );
-                })}
+                {categories.map((category) => (
+                    <React.Fragment key={category.name}>
+                        <div className={styles.navCategory}>{category.name}</div>
+                        {category.tabs.map((tab) => {
+                            const Icon = (tab as any).icon;
+                            const isActive = activeTab === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    className={`${styles.navItem} ${isActive ? styles.active : ''}`}
+                                    onClick={() => onTabChange(tab.id)}
+                                >
+                                    <span className={styles.icon}>
+                                        <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                                    </span>
+                                    <span className={styles.label}>
+                                        {tab.label}
+                                        {(tab as any).beta && <span className={styles.betaBadge}>BETA</span>}
+                                    </span>
+                                    {isActive && <div className={styles.activeIndicator} />}
+                                </button>
+                            );
+                        })}
+                    </React.Fragment>
+                ))}
             </nav>
 
             <div

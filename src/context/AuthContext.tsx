@@ -60,7 +60,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         filter: `id=eq.${userId}`
                     },
                     (payload: any) => {
-                        console.log('[AuthContext] Profile updated real-time:', payload.new);
                         setProfile(payload.new as UserProfile);
                         setRole((payload.new as UserProfile).role);
                     }

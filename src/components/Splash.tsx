@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import styles from './Splash.module.css';
-import logo from '../assets/logo.png';
+import { SystemService } from '../services/SystemService';
 
 interface SplashProps {
     onComplete: () => void;
@@ -8,8 +8,15 @@ interface SplashProps {
 
 export const Splash: React.FC<SplashProps> = ({ onComplete }) => {
     const [progress, setProgress] = useState(0);
+    const [version, setVersion] = useState('');
 
     useEffect(() => {
+        const fetchVersion = async () => {
+            const v = await SystemService.getAppVersion();
+            setVersion(`v${v}`);
+        };
+        fetchVersion();
+
         const interval = setInterval(() => {
             setProgress(prev => {
                 if (prev >= 100) {
@@ -32,7 +39,10 @@ export const Splash: React.FC<SplashProps> = ({ onComplete }) => {
             <div className={styles.progressContainer}>
                 <div className={styles.progressBar} style={{ width: `${progress}%` }}></div>
             </div>
-            <div className={styles.status}>Initializing... {progress}%</div>
+            <div className={styles.status}>
+                <span>Initializing... {progress}%</span>
+                {version && <span style={{ opacity: 0.5, fontSize: '0.8em' }}>{version}</span>}
+            </div>
         </div>
     );
 };

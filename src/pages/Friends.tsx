@@ -87,7 +87,6 @@ export const Friends: React.FC<FriendsProps> = ({ isOnline = true }) => {
         if (!user) return;
         setLoading(true);
         const data = await CloudManager.getFriends(user.uuid);
-        console.log("[Friends] Loaded friends:", data);
         setFriends(data);
         setLoading(false);
     };
@@ -95,7 +94,6 @@ export const Friends: React.FC<FriendsProps> = ({ isOnline = true }) => {
     const loadRequests = async () => {
         if (!user) return;
         const data = await CloudManager.getFriendRequests(user.uuid);
-        console.log("[Friends] Loaded requests:", data);
         setRequests(data);
     };
 

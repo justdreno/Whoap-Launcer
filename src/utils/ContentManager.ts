@@ -63,5 +63,44 @@ export const ContentManager = {
             type: row.type,
             date: row.created_at
         }));
+    },
+
+    createChangelog: async (changelog: Omit<ChangelogItem, 'id' | 'date'>): Promise<ChangelogItem | null> => {
+        const { data, error } = await supabase
+            .from('changelogs')
+            .insert({
+                version: changelog.version,
+                description: changelog.description,
+                type: changelog.type
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error("Changelog Creation Error:", error);
+            return null;
+        }
+
+        return {
+            id: data.id,
+            version: data.version,
+            description: data.description,
+            type: data.type,
+            date: data.created_at
+        };
+    },
+
+    deleteChangelog: async (id: string): Promise<boolean> => {
+        const { error } = await supabase
+            .from('changelogs')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error("Changelog Deletion Error:", error);
+            return false;
+        }
+
+        return true;
     }
 };

@@ -41,10 +41,32 @@ async function createWindow() {
     // Window Management IPC
     ipcMain.on('window:minimize', () => mainWindow?.minimize());
     ipcMain.on('window:maximize', () => {
-        if (mainWindow?.isMaximized()) mainWindow.unmaximize();
-        else mainWindow?.maximize();
+        if (mainWindow?.isMaximized()) {
+            mainWindow.unmaximize();
+        } else {
+            mainWindow?.maximize();
+        }
     });
     ipcMain.on('window:close', () => mainWindow?.close());
+
+    // Also support legacy channel names (window-minimize, etc.)
+    ipcMain.on('window-minimize', () => mainWindow?.minimize());
+    ipcMain.on('window-maximize', () => {
+        if (mainWindow?.isMaximized()) {
+            mainWindow.unmaximize();
+        } else {
+            mainWindow?.maximize();
+        }
+    });
+    ipcMain.on('window-close', () => mainWindow?.close());
+
+    // Notify renderer of maximize state changes
+    mainWindow.on('maximize', () => {
+        mainWindow?.webContents.send('window:maximized-changed', true);
+    });
+    mainWindow.on('unmaximize', () => {
+        mainWindow?.webContents.send('window:maximized-changed', false);
+    });
 
     // Skin Server Info IPC
     ipcMain.handle('skin:get-server-info', () => {

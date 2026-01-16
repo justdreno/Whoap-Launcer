@@ -52,9 +52,7 @@ export const CreateInstanceModal: React.FC<CreateInstanceModalProps> = ({ onClos
                 setLoadingFabric(true);
                 setSelectedLoaderVersion(''); // Reset selection
                 try {
-                    console.log(`[CreateInstance] Fetching loaders for ${version}`);
                     const loaders = await InstanceApi.getFabricLoaders(version);
-                    console.log(`[CreateInstance] Loaders found:`, loaders);
                     setFabricLoaders(loaders);
                     if (loaders.length > 0) {
                         const stable = loaders.find(l => l.stable);
