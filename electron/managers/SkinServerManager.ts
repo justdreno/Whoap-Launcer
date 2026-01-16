@@ -128,7 +128,7 @@ export class SkinServerManager {
             const assetsPath = app.isPackaged
                 ? path.join(process.resourcesPath, 'assets')
                 : path.join(__dirname, '../../src/assets');
-            
+
             const stevePath = path.join(assetsPath, 'steve.png');
             const whoapSkinPath = path.join(assetsPath, 'whoap-skin.png');
 
@@ -201,9 +201,10 @@ export class SkinServerManager {
         // Ensure UUID has NO dashes for profileId in payload
         const profileId = uuid.replace(/-/g, '');
 
-        // Use 127.0.0.1 instead of localhost for better compatibility
-        const skinUrl = `http://127.0.0.1:${this.port}/textures/skin/${formattedSkinUuid}`;
-        const capeUrl = `http://127.0.0.1:${this.port}/textures/cape/${formattedSkinUuid}`;
+        // Use direct Supabase URLs for better compatibility with third-party servers
+        // The 127.0.0.1 URLs won't work for remote servers
+        const skinUrl = `${this.SUPABASE_URL}/storage/v1/object/public/skins/${formattedSkinUuid}.png`;
+        const capeUrl = `${this.SUPABASE_URL}/storage/v1/object/public/capes/${formattedSkinUuid}.png`;
 
         const skinModel = options?.model || SkinServerManager.currentUser?.skinModel || 'default';
 
@@ -265,9 +266,9 @@ export class SkinServerManager {
 
         const skinModel = options?.model || SkinServerManager.currentUser?.skinModel || 'default';
 
-        // Use 127.0.0.1 instead of localhost for better compatibility
-        const skinUrl = `http://127.0.0.1:${this.port}/textures/skin/${formattedSkinUuid}`;
-        const capeUrl = `http://127.0.0.1:${this.port}/textures/cape/${formattedSkinUuid}`;
+        // Use direct Supabase URLs for better compatibility with third-party servers
+        const skinUrl = `${this.SUPABASE_URL}/storage/v1/object/public/skins/${formattedSkinUuid}.png`;
+        const capeUrl = `${this.SUPABASE_URL}/storage/v1/object/public/capes/${formattedSkinUuid}.png`;
 
         // Build textures object
         const textures: any = {
@@ -316,7 +317,7 @@ export class SkinServerManager {
 
         return new Promise((resolve) => {
             const url = `${this.SUPABASE_URL}/storage/v1/object/public/skins/${formattedUuid}.png`;
-            
+
             https.get(url, (res) => {
                 if (res.statusCode === 200) {
                     const chunks: Buffer[] = [];
@@ -350,7 +351,7 @@ export class SkinServerManager {
 
         return new Promise((resolve) => {
             const url = `${this.SUPABASE_URL}/storage/v1/object/public/capes/${formattedUuid}.png`;
-            
+
             https.get(url, (res) => {
                 if (res.statusCode === 200) {
                     const chunks: Buffer[] = [];
@@ -477,6 +478,7 @@ export class SkinServerManager {
                     ".localhost",
                     ".supabase.co",
                     `${this.SUPABASE_PROJECT}.supabase.co`,
+                    "ibtctzkqzezrtcglicjf.supabase.co",
                     ".minecraft.net",
                     "textures.minecraft.net",
                     "mc-heads.net",
@@ -509,8 +511,10 @@ export class SkinServerManager {
 
         // Profile Endpoint - Single UUID lookup (most common)
         this.app_express.get('/sessionserver/session/minecraft/profile/:uuid', async (req: Request, res: Response) => {
-            let { uuid } = req.params;
-            if (Array.isArray(uuid)) uuid = uuid[0];
+            let uuid = req.params.uuid as string;
+
+            // Remove .png extension if present (some clients append it)
+            uuid = uuid.replace('.png', '');
 
             // Validate UUID length
             if (uuid.length < 32) {
@@ -577,9 +581,9 @@ export class SkinServerManager {
 
         // Skin Texture Endpoint - Direct serving with fallback
         this.app_express.get('/textures/skin/:uuid', async (req: Request, res: Response) => {
-            let { uuid } = req.params;
+            let uuid = req.params.uuid as string;
             uuid = uuid.replace('.png', ''); // Remove .png extension if present
-            
+
             console.log(`[SkinServer] Fetching skin for: ${uuid}`);
 
             // Check if this is the current user
@@ -619,7 +623,7 @@ export class SkinServerManager {
 
         // Cape Texture Endpoint
         this.app_express.get('/textures/cape/:uuid', async (req: Request, res: Response) => {
-            let { uuid } = req.params;
+            let uuid = req.params.uuid as string;
             uuid = uuid.replace('.png', ''); // Remove .png extension if present
 
             console.log(`[SkinServer] Fetching cape for: ${uuid}`);
@@ -653,21 +657,22 @@ export class SkinServerManager {
 
         // Legacy skin endpoint (backward compatibility)
         this.app_express.get('/skins/:filename', async (req: Request, res: Response) => {
-            const { filename } = req.params;
+            const filename = req.params.filename as string;
             const uuid = filename.replace('.png', '');
             res.redirect(`/textures/skin/${uuid}`);
         });
 
         // Legacy cape endpoint (backward compatibility)
         this.app_express.get('/capes/:filename', async (req: Request, res: Response) => {
-            const { filename } = req.params;
+            const filename = req.params.filename as string;
             const uuid = filename.replace('.png', '');
             res.redirect(`/textures/cape/${uuid}`);
         });
 
         // Legacy texture endpoint (some older clients/servers use this)
         this.app_express.get('/textures/:hash', (req: Request, res: Response) => {
-            res.redirect(`/textures/skin/${req.params.hash}`);
+            const hash = req.params.hash as string;
+            res.redirect(`/textures/skin/${hash}`);
         });
 
         // ============================================
@@ -877,8 +882,9 @@ export class SkinServerManager {
             }
             const profileId = uuid.replace(/-/g, '');
 
-            const skinUrl = `http://127.0.0.1:${this.port}/textures/skin/${uuid}`;
-            const capeUrl = `http://127.0.0.1:${this.port}/textures/cape/${uuid}`;
+            // Use Supabase URLs for better compatibility with third-party servers
+            const skinUrl = `${this.SUPABASE_URL}/storage/v1/object/public/skins/${uuid}.png`;
+            const capeUrl = `${this.SUPABASE_URL}/storage/v1/object/public/capes/${uuid}.png`;
 
             res.json({
                 id: profileId,

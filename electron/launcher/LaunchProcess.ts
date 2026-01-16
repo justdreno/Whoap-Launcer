@@ -250,7 +250,7 @@ export class LaunchProcess {
                 const skinServerPort = SkinServerManager.getInstance()?.getPort() || 25500;
                 const AUTH_SERVER_URL = `http://127.0.0.1:${skinServerPort}`;
                 const authlibPath = path.join(librariesDir, 'authlib-injector.jar');
-                
+
                 console.log(`[Launch] Using skin server at ${AUTH_SERVER_URL}`);
 
                 // Only download if missing
@@ -534,8 +534,6 @@ export class LaunchProcess {
                     '-Dauthlibinjector.mojangNamespace=disabled',
                     // Enable skin prefetch for better performance
                     '-Dauthlibinjector.skinPreload=true',
-                    // Debug mode - can be disabled in production
-                    '-Dauthlibinjector.debug=false',
                 ];
 
                 const jvmArgs = [

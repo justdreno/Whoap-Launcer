@@ -175,7 +175,7 @@ export const Profile: React.FC<ProfileProps> = ({ user }) => {
 
         setIsUploading(true);
         try {
-            const { data, error } = await supabase.storage.from('skins').upload(`${user.uuid}.png`, file, {
+            const { error } = await supabase.storage.from('skins').upload(`${user.uuid}.png`, file, {
                 upsert: true,
                 cacheControl: '0'
             });
@@ -214,7 +214,7 @@ export const Profile: React.FC<ProfileProps> = ({ user }) => {
 
         setIsUploading(true);
         try {
-            const { data, error } = await supabase.storage.from('capes').upload(`${user.uuid}.png`, file, {
+            const { error } = await supabase.storage.from('capes').upload(`${user.uuid}.png`, file, {
                 upsert: true,
                 cacheControl: '0'
             });
