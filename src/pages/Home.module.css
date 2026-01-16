@@ -195,17 +195,63 @@
 }
 
 /* ==================== HERO IMAGE ==================== */
-.heroImage {
+.skinContainer {
     position: absolute;
-    right: 30px;
+    right: 20px;
     bottom: 0;
-    height: 100%;
-    max-height: 400px;
-    /* Limit height so it doesn't get crazy on tall boxes */
-    z-index: 3;
-    pointer-events: none;
-    object-fit: contain;
+    height: 90%;
+    width: 220px;
+    /* Explicit width for clickable area */
+    max-height: 480px;
+    z-index: 1000 !important;
+    /* Above everything else in the hero */
+    cursor: pointer;
     transform-origin: bottom right;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: auto !important;
+}
+
+.skinContainer:hover {
+    transform: scale(1.05) rotate(-2deg);
+}
+
+.skinContainer:hover .skinOverlay {
+    opacity: 1;
+}
+
+.skinOverlay {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(255, 136, 0, 0.2) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1001;
+    pointer-events: none;
+    /* Let clicks pass to the container's onClick */
+}
+
+.skinNotice {
+    background: #ff8800;
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 15px rgba(255, 136, 0, 0.5);
+    margin-top: 50%;
+}
+
+.heroImage {
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+    /* Let clicks pass to container */
 }
 
 .emptyProfileIcon {
@@ -602,5 +648,106 @@
 @keyframes spin {
     to {
         transform: rotate(360deg);
+    }
+}
+
+/* Modal Styles */
+.modalOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    animation: fadeIn 0.2s ease;
+}
+
+.modalContent {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 20px;
+    padding: 32px;
+    width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+}
+
+.modalContent h3 {
+    margin: 0;
+    font-size: 20px;
+    color: #fff;
+}
+
+.modalContent p {
+    margin: 0;
+    font-size: 14px;
+    color: #888;
+    line-height: 1.5;
+}
+
+.modalInput {
+    background: #000;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 12px 16px;
+    color: #fff;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.modalInput:focus {
+    border-color: #ff8800;
+}
+
+.modalActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.confirmBtn {
+    background: #ff8800;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 24px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.confirmBtn:hover {
+    background: #ffaa00;
+}
+
+.cancelBtn {
+    background: transparent;
+    color: #666;
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 10px 24px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.cancelBtn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
     }
 }

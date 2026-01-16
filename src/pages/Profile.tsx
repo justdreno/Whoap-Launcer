@@ -276,6 +276,11 @@ export const Profile: React.FC<ProfileProps> = ({ user }) => {
                 description="Manage your skins, capes, and view your achievements."
             />
 
+            <div className={styles.notice}>
+                <div className={styles.noticeIcon}>!</div>
+                <span>Skin and Cape support is currently in Beta and only visible in Singleplayer mode.</span>
+            </div>
+
             <div className={styles.layout}>
                 {/* Left Panel - Controls */}
                 <div className={styles.controlsPanel}>

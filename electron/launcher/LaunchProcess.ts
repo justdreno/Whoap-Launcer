@@ -526,8 +526,13 @@ export class LaunchProcess {
                     '-Dauthlibinjector.side=client',
                     // Disable server name display in title
                     '-Dauthlibinjector.noShowServerName=true',
-                    // Enable profile key signing for multiplayer
-                    '-Dauthlibinjector.profileKey.enabled=true',
+                    // CRITICAL FIX: Disable signature verification for unsigned textures
+                    // This allows our unsigned texture properties to work on third-party servers
+                    '-Dauthlibinjector.disableSigcheck=true',
+                    // Ignore timestamp validation for better compatibility
+                    '-Dauthlibinjector.ignoreTimestamp=true',
+                    // Enable profile key signing for multiplayer (optional, disabled for compatibility)
+                    // '-Dauthlibinjector.profileKey.enabled=true',
                     // Disable authlib-injector update checks
                     '-Dauthlibinjector.noUpdate=true',
                     // IMPORTANT: Allow Mojang namespace for mixed server support
@@ -536,7 +541,7 @@ export class LaunchProcess {
                     '-Dauthlibinjector.mojangNamespace=enabled',
                     // Prefetch skins for better loading performance
                     '-Dauthlibinjector.skinPreload=true',
-                    // Enable debug logging for troubleshooting
+                    // Enable debug logging for troubleshooting (uncomment if needed)
                     // '-Dauthlibinjector.debug=true',
                 ];
 
@@ -547,6 +552,11 @@ export class LaunchProcess {
                     '-Dminecraft.launcher.brand=whoap',
                     '-Dminecraft.launcher.version=2.0.0',
                     '-Dminecraft.client.jar=' + clientJarPath,
+                    // CRITICAL: Allow insecure texture sources (needed for Supabase URLs)
+                    '-Dminecraft.api.auth.host=http://127.0.0.1:' + skinServerPort,
+                    '-Dminecraft.api.account.host=http://127.0.0.1:' + skinServerPort,
+                    '-Dminecraft.api.session.host=http://127.0.0.1:' + skinServerPort,
+                    '-Dminecraft.api.services.host=http://127.0.0.1:' + skinServerPort,
                     // Authlib-injector config - MUST come before -cp
                     ...authlibConfig,
                     '-cp', classpath,

@@ -68,9 +68,23 @@ function App() {
                         name: result.profile.name,
                         uuid: result.profile.uuid,
                         token: result.profile.token,
-                        type: result.profile.type, // Capture auth type (supabase, microsoft, offline)
-                        role: role
+                        type: result.profile.type,
+                        role: role,
+                        preferredSkin: result.profile.preferredSkin // Reconstructed main.ts might not have had this, but we'll sync it
                     });
+
+                    // If it's a legacy whoap account from storage, refresh preferredSkin from Supabase
+                    if (result.profile.type === 'whoap') {
+                        try {
+                            const { ProfileService } = await import('./services/ProfileService');
+                            const dbProfile = await ProfileService.getProfile(result.profile.uuid);
+                            if (dbProfile?.preferred_skin) {
+                                setUser((prev: any) => ({ ...prev, preferredSkin: dbProfile.preferred_skin }));
+                            }
+                        } catch (e) {
+                            console.warn("[App] Could not fetch preferred skin from DB");
+                        }
+                    }
 
                     // Sync Supabase session if it's a whoap account
                     if (result.profile.type === 'whoap' && result.profile.token) {

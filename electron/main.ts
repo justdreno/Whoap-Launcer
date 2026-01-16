@@ -1,177 +1,106 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron'
-import path from 'path'
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import path from 'path';
+import { AuthManager } from './managers/AuthManager';
+import { InstanceManager } from './managers/InstanceManager';
+import { ConfigManager } from './managers/ConfigManager';
+import { ModsManager } from './managers/ModsManager';
+import { ModpackManager } from './managers/ModpackManager';
+import { SkinServerManager } from './managers/SkinServerManager';
+import { LogWindowManager } from './managers/LogWindowManager';
+import { AutoUpdateManager } from './managers/AutoUpdateManager';
+import { ScreenshotManager } from './managers/ScreenshotManager';
+import { NetworkManager } from './managers/NetworkManager';
+import { LaunchProcess } from './launcher/LaunchProcess';
 
-process.env.DIST = path.join(__dirname, '../dist-react')
-process.env.PUBLIC = app.isPackaged ? process.env.DIST! : path.join(process.env.DIST!, '../public')
+let mainWindow: BrowserWindow | null = null;
+let skinServer: SkinServerManager | null = null;
 
-let win: BrowserWindow | null
-let tray: Tray | null = null
-
-const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
-
-function createWindow() {
-    win = new BrowserWindow({
-        width: 1200,
-        height: 800,
-        minWidth: 800,
+async function createWindow() {
+    mainWindow = new BrowserWindow({
+        width: 1100,
+        height: 700,
+        minWidth: 900,
         minHeight: 600,
-        resizable: true,
-        frame: false, // Frameless for custom titlebar
+        frame: false,
+        backgroundColor: '#000000',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
-        },
-        transparent: true,
-        // Use logo.png for icon (works in both dev and prod)
-        icon: app.isPackaged
-            ? path.join(process.resourcesPath, 'icon.png')
-            : path.join(__dirname, '../src/assets/logo.png')
-    })
+            webSecurity: true
+        }
+    });
 
-    // Test active push message to user 
-    if (VITE_DEV_SERVER_URL) {
-        win.loadURL(VITE_DEV_SERVER_URL!)
+    // Development vs Production URL
+    if (process.env.VITE_DEV_SERVER_URL) {
+        mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
     } else {
-        win.loadFile(path.join(process.env.DIST!, 'index.html'))
+        mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
     }
-}
 
-function createTray() {
-    // Use logo.png for tray icon
-    const iconPath = app.isPackaged
-        ? path.join(process.resourcesPath, 'icon.png')
-        : path.join(__dirname, '../src/assets/logo.png');
-    const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
-    tray = new Tray(icon);
-
-    const contextMenu = Menu.buildFromTemplate([
-        { label: 'Show Launcher', click: () => win?.show() },
-        {
-            label: 'Quit', click: () => {
-                app.quit();
-            }
-        }
-    ]);
-
-    tray.setToolTip('Whoap Launcher');
-    tray.setContextMenu(contextMenu);
-
-    tray.on('click', () => {
-        if (win?.isVisible()) {
-            win.hide();
-        } else {
-            win?.show();
-        }
+    // Window Management IPC
+    ipcMain.on('window:minimize', () => mainWindow?.minimize());
+    ipcMain.on('window:maximize', () => {
+        if (mainWindow?.isMaximized()) mainWindow.unmaximize();
+        else mainWindow?.maximize();
     });
+    ipcMain.on('window:close', () => mainWindow?.close());
 
-    // Handle balloon click if needed specific to OS
-}
-
-app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit()
-})
-
-import { AuthManager } from './managers/AuthManager';
-import { SkinServerManager } from './managers/SkinServerManager';
-import { InstanceManager } from './managers/InstanceManager';
-import { VersionManager } from './launcher/VersionManager';
-import { LaunchProcess } from './launcher/LaunchProcess';
-import { ConfigManager } from './managers/ConfigManager';
-import { LogWindowManager } from './managers/LogWindowManager';
-import { CloudManager } from './managers/CloudManager';
-import { ModpackManager } from './managers/ModpackManager';
-import { ModsManager } from './managers/ModsManager';
-import { NetworkManager } from './managers/NetworkManager';
-import { AutoUpdateManager } from './managers/AutoUpdateManager';
-import { ScreenshotManager } from './managers/ScreenshotManager';
-
-app.whenReady().then(() => {
-    new ConfigManager(); // Init first
-    new AuthManager();
-    new SkinServerManager();
-    InstanceManager.getInstance();
-    new VersionManager();
-    new LaunchProcess();
-    new LogWindowManager(); // Init listeners
-    new ModpackManager(); // Init Modpack IPC
-    new ModsManager(); // Init Mods IPC
-    new NetworkManager(); // Init Network IPC
-    new ScreenshotManager(); // Init Screenshot IPC
-    CloudManager.getInstance(); // Init Cloud
-
-    // Reset handler - mode: 'database' | 'full'
-    // 'database' = only clear launcher config, keep game files
-    // 'full' = delete everything including instances
-    ipcMain.handle('app:reset', async (_, mode: 'database' | 'full' = 'database') => {
-        const userDataPath = app.getPath('userData');
-        const fs = require('fs');
-        const path = require('path');
-
-        try {
-            // Always delete configuration files
-            ['auth.json', 'config.json', 'favorites.json', 'whoap-config.json'].forEach(file => {
-                const filePath = path.join(userDataPath, file);
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
-                }
-            });
-
-            if (mode === 'full') {
-                // Full reset: Delete instances directory too
-                const instancesPath = path.join(userDataPath, 'instances');
-                if (fs.existsSync(instancesPath)) {
-                    fs.rmSync(instancesPath, { recursive: true, force: true });
-                }
-            }
-            // In 'database' mode, we keep the instances folder but they won't be recognized
-            // because the config is cleared. User can re-import them.
-
-            app.relaunch();
-            app.exit(0);
-            return { success: true };
-        } catch (e) {
-            console.error(e);
-            return { success: false, error: String(e) };
-        }
-    });
-
-    // Skin Server IPC handlers for multiplayer support
-    ipcMain.handle('skin:register-player', async (_, playerData: { uuid: string; name: string; realUuid: string }) => {
-        try {
-            SkinServerManager.registerPlayer(playerData.uuid, playerData.name, playerData.realUuid);
-            return { success: true };
-        } catch (e) {
-            return { success: false, error: String(e) };
-        }
-    });
-
-    ipcMain.handle('skin:get-server-info', async () => {
-        const skinServer = SkinServerManager.getInstance();
+    // Skin Server Info IPC
+    ipcMain.handle('skin:get-server-info', () => {
         return {
-            url: skinServer?.getServerUrl() || `http://127.0.0.1:25500`,
-            port: skinServer?.getPort() || 25500,
-            multiplayerEnabled: true
+            url: skinServer?.getServerUrl() || 'http://127.0.0.1:25500',
+            port: skinServer?.getPort() || 25500
         };
     });
 
-    ipcMain.on('window-minimize', () => win?.minimize());
-    ipcMain.on('window-maximize', () => {
-        if (win?.isMaximized()) {
-            win.unmaximize();
-        } else {
-            win?.maximize();
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
+}
+
+// Ensure single instance
+if (!app.requestSingleInstanceLock()) {
+    app.quit();
+} else {
+    app.on('second-instance', () => {
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.focus();
         }
     });
-    ipcMain.on('window-close', () => win?.close());
 
-    createWindow();
-    createTray();
+    app.whenReady().then(() => {
+        // Initialize Managers
+        new AuthManager();
+        InstanceManager.getInstance();
+        new ConfigManager();
+        new ModsManager();
+        new ModpackManager();
+        new LaunchProcess();
+        new ScreenshotManager();
+        new NetworkManager();
+        new LogWindowManager();
 
-    // Initialize Auto-Updater
-    const updater = AutoUpdateManager.getInstance();
-    if (win) {
-        updater.setMainWindow(win);
-        updater.checkForUpdatesOnStartup();
+        // Start Skin Server
+        skinServer = new SkinServerManager();
+
+        // Auto Update
+        const autoUpdate = AutoUpdateManager.getInstance();
+        autoUpdate.setMainWindow(mainWindow!);
+
+        createWindow();
+    });
+}
+
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+        app.quit();
     }
-})
+});
+
+app.on('activate', () => {
+    if (mainWindow === null) {
+        createWindow();
+    }
+});

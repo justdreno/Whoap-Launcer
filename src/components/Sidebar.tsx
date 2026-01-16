@@ -140,7 +140,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
                     style={{ cursor: 'pointer' }}
                 >
                     <UserAvatar
-                        username={user.name}
+                        username={user.name || (user as any).preferredSkin}
+                        preferredSkin={(user as any).preferredSkin}
                         uuid={user.uuid}
                         accountType={(user as any).type}
                         className={styles.sidebarAvatar}

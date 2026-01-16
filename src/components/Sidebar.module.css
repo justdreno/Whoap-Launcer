@@ -12,6 +12,26 @@
     transition: all 0.3s ease;
     position: relative;
     z-index: 10;
+    overflow: hidden;
+    /* Sidebar itself shouldn't scroll */
+}
+
+/* Scrollbar styling for sidebar */
+.sidebar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .logoArea {
@@ -56,6 +76,29 @@
     flex-direction: column;
     gap: 6px;
     flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-bottom: 16px;
+    /* Gap before profile box */
+    padding-right: 4px;
+}
+
+/* Scrollbar styling for navigation section */
+.nav::-webkit-scrollbar {
+    width: 4px;
+}
+
+.nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.nav::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.nav::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .navItem {
@@ -142,7 +185,8 @@
 }
 
 .userProfile {
-    margin-top: auto;
+    margin-top: 0;
+    /* margin handled by nav margin-bottom and flex-grow */
     display: flex;
     align-items: center;
     padding: 14px;
@@ -151,6 +195,8 @@
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.05);
     transition: all 0.2s;
+    flex-shrink: 0;
+    /* Don't squash the profile box */
 }
 
 .userProfile:hover {
@@ -256,6 +302,7 @@
     height: 100%;
     object-fit: contain;
 }
+
 .userRole {
     display: flex;
     align-items: center;
@@ -275,4 +322,3 @@
     letter-spacing: 1px;
     margin-top: -2px;
 }
-

@@ -36,6 +36,10 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
     const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null);
     const [statusLoading, setStatusLoading] = useState(false);
 
+    // Skin Selector State
+    const [showSkinModal, setShowSkinModal] = useState(false);
+    const [tempSkin, setTempSkin] = useState((user as any).preferredSkin || user.name);
+
     useEffect(() => {
         const loadData = async () => {
             const list = await InstanceApi.list();
@@ -296,19 +300,65 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
                     </div>
                 </div>
                 {activeInstance ? (
-                    <UserAvatar
-                        username={user.name}
-                        uuid={user.uuid}
-                        accountType={(user as any).type}
-                        variant="body"
-                        className={styles.heroImage}
-                    />
+                    <div
+                        className={styles.skinContainer}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('[Home] Skin clicked - Opening Modal');
+                            setShowSkinModal(true);
+                        }}
+                    >
+                        <div className={styles.skinOverlay}>
+                            <div className={styles.skinNotice}>Change Skin</div>
+                        </div>
+                        <UserAvatar
+                            username={user.name || (user as any).preferredSkin}
+                            preferredSkin={(user as any).preferredSkin}
+                            uuid={user.uuid}
+                            accountType={(user as any).type}
+                            variant="body"
+                            className={styles.heroImage}
+                        />
+                    </div>
                 ) : (
                     <div className={styles.emptyProfileIcon}>
                         <Layers size={80} strokeWidth={1.5} />
                     </div>
                 )}
             </div>
+
+            {/* Custom Skin Modal */}
+            {showSkinModal && (
+                <div className={styles.modalOverlay} onClick={() => setShowSkinModal(false)}>
+                    <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+                        <h3>Change Preview Skin</h3>
+                        <p>Enter a Minecraft username to change your skin preview.</p>
+                        <input
+                            type="text"
+                            value={tempSkin}
+                            onChange={e => setTempSkin(e.target.value)}
+                            placeholder="Username..."
+                            className={styles.modalInput}
+                            autoFocus
+                        />
+                        <div className={styles.modalActions}>
+                            <button onClick={() => setShowSkinModal(false)} className={styles.cancelBtn}>Cancel</button>
+                            <button onClick={async () => {
+                                if (tempSkin && tempSkin !== ((user as any).preferredSkin || user.name)) {
+                                    if ((user as any).type === 'whoap') {
+                                        const { ProfileService } = await import('../services/ProfileService');
+                                        await ProfileService.updateProfile(user.uuid, { preferred_skin: tempSkin });
+                                    }
+                                    showToast(`Skin updated to ${tempSkin}!`, 'success');
+                                    window.location.reload();
+                                }
+                                setShowSkinModal(false);
+                            }} className={styles.confirmBtn}>Apply</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Widgets Section */}
             <div className={styles.widgetsGrid}>

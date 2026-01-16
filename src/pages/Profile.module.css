@@ -14,6 +14,31 @@
     color: #fff;
 }
 
+.notice {
+    background: rgba(255, 171, 0, 0.1);
+    border: 1px solid rgba(255, 171, 0, 0.2);
+    border-radius: 12px;
+    padding: 16px 24px;
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    color: #ffab00;
+    font-weight: 500;
+}
+
+.noticeIcon {
+    background: #ffab00;
+    color: #000;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
 .layout {
     display: flex;
     gap: 48px;
