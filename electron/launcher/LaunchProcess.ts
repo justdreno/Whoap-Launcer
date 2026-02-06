@@ -499,7 +499,23 @@ export class LaunchProcess {
                             progress: progress,
                             total: 100
                         });
+                        // Forward specific java progress to the modal too, if it's open
+                        event.sender.send('java-install-progress', { status, progress });
+                    }, async (ver, size) => {
+                        console.log(`[Launch] Asking user consent for Java ${ver} (${size} bytes)`);
+                        event.sender.send('java-install-request', { version: ver, sizeInBytes: size });
+
+                        return new Promise<'install' | 'skip' | 'cancel'>((resolve) => {
+                            // Listen for one-time consent response
+                            ipcMain.once('java-install-consent', (_, action: 'install' | 'skip' | 'cancel') => {
+                                resolve(action);
+                                // Also notify frontend that we are done/start (handled by progress events mostly)
+                                if (action !== 'install') event.sender.send('java-install-done');
+                            });
+                        });
                     });
+
+                    event.sender.send('java-install-done');
                 }
 
                 // Get RAM settings

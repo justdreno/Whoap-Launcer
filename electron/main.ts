@@ -165,6 +165,7 @@ if (!app.requestSingleInstanceLock()) {
     });
 
     app.whenReady().then(async () => {
+        console.log("!!! ELECTRON MAIN STARTUP - VERIFICATION LOG !!!");
         // Initialize Core Managers
         new ConfigManager();
         new AuthManager();

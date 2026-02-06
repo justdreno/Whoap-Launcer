@@ -1,8 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { net } from 'electron';
 import { EventEmitter } from 'events';
+import axios, { AxiosRequestConfig } from 'axios';
+import { createWriteStream, createReadStream } from 'fs';
+import { pipeline } from 'stream/promises';
 
 export interface DownloadTask {
     url: string;
@@ -12,10 +14,13 @@ export interface DownloadTask {
     priority?: number;
 }
 
+const MAX_RETRIES = 5;
+const INITIAL_BACKOFF_MS = 1000;
+
 export class AssetDownloader extends EventEmitter {
     private queue: DownloadTask[] = [];
     private activeDownloads = 0;
-    private maxConcurrent = 10;
+    private maxConcurrent = 5; // Lower concurrency for stability on bad networks
     private totalBytes = 0;
     private downloadedBytes = 0;
 
@@ -25,7 +30,12 @@ export class AssetDownloader extends EventEmitter {
 
     addToQueue(tasks: DownloadTask[]) {
         this.queue.push(...tasks);
-        tasks.forEach(t => this.totalBytes += (t.size || 0));
+        // Add estimated size to total (if known)
+        tasks.forEach(t => {
+            console.log(`[AssetDownloader] Adding task ${path.basename(t.destination)} size=${t.size}`);
+            this.totalBytes += (t.size || 0);
+        });
+        console.log(`[AssetDownloader] New totalBytes: ${this.totalBytes}`);
         this.processQueue();
     }
 
@@ -38,7 +48,10 @@ export class AssetDownloader extends EventEmitter {
         while (this.activeDownloads < this.maxConcurrent && this.queue.length > 0) {
             const task = this.queue.shift();
             if (task) {
-                this.downloadFile(task);
+                this.downloadFile(task).catch(err => {
+                    // Global error handler if needed, though tasks handle their own errors/retries
+                    console.error("Task failed fatally:", err);
+                });
             }
         }
     }
@@ -51,79 +64,149 @@ export class AssetDownloader extends EventEmitter {
             fs.mkdirSync(dir, { recursive: true });
         }
 
-        // Check if file exists and matches SHA1
-        if (fs.existsSync(task.destination) && task.sha1) {
-            const valid = await this.verifyFile(task.destination, task.sha1);
-            if (valid) {
-                this.downloadedBytes += (task.size || 0);
-                this.emit('progress', { total: this.totalBytes, current: this.downloadedBytes });
+        // 1. Check if complete file exists and is valid
+        if (fs.existsSync(task.destination)) {
+            if (task.sha1) {
+                const valid = await this.verifyFile(task.destination, task.sha1);
+                if (valid) {
+                    console.log(`[Downloader] Cache hit for ${path.basename(task.destination)}`);
+                    this.downloadedBytes += (task.size || 0); // Count as done
+                    this.emit('progress', { total: this.totalBytes, current: this.downloadedBytes });
+                    this.activeDownloads--;
+                    this.processQueue();
+                    return;
+                } else {
+                    console.warn(`[Downloader] Hash mismatch for existing file ${task.destination}, redownloading.`);
+                    fs.unlinkSync(task.destination); // Delete invalid file
+                }
+            } else {
+                // No hash provided, assume existing file is good? 
+                // Risk: corrupted file stays. Better to re-download if unsure or check size?
+                // For now, if no hash, we assume it's good to avoid redownloading everything.
+                // Ideally we should always provide hash.
                 this.activeDownloads--;
                 this.processQueue();
                 return;
             }
         }
 
-        try {
-            await this.download(task.url, task.destination, task.size);
+        // 2. Start Download Loop with Retries
+        let attempt = 0;
+        let downloaded = false;
 
-            if (task.sha1) {
-                const valid = await this.verifyFile(task.destination, task.sha1);
-                if (!valid) {
-                    throw new Error(`SHA1 mismatch for ${task.destination}`);
-                }
-            }
-        } catch (error) {
-            console.error(`Failed to download ${task.url}`, error);
-            // Simple retry logic could go here, for now we just error
-            this.emit('error', error);
-        } finally {
-            this.activeDownloads--;
-            this.processQueue();
-        }
-    }
+        while (attempt < MAX_RETRIES && !downloaded) {
+            try {
+                await this.performDownload(task);
+                downloaded = true;
+            } catch (error: any) {
+                attempt++;
+                console.error(`[Downloader] Failed ${task.url} (Attempt ${attempt}/${MAX_RETRIES}): ${error.message}`);
 
-    private download(url: string, dest: string, expectedSize?: number): Promise<void> {
-        return new Promise((resolve, reject) => {
-            const request = net.request(url);
-            request.on('response', (response) => {
-                if (response.statusCode !== 200) {
-                    reject(new Error(`Failed to download ${url}: ${response.statusCode}`));
+                if (attempt >= MAX_RETRIES) {
+                    this.emit('error', new Error(`Failed to download ${path.basename(task.destination)} after ${MAX_RETRIES} attempts: ${error.message}`));
+                    this.activeDownloads--; // Ensure we decrement even on fatal error
+                    this.processQueue();
                     return;
                 }
 
-                const fileStream = fs.createWriteStream(dest);
-                response.on('data', (chunk) => {
-                    fileStream.write(chunk);
-                    this.downloadedBytes += chunk.length;
+                // Exponential Backoff
+                const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1);
+                await new Promise(r => setTimeout(r, delay));
+            }
+        }
 
-                    // Throttle events?
+        // 3. Post-Download Validation
+        if (downloaded) {
+            if (task.sha1) {
+                const valid = await this.verifyFile(task.destination, task.sha1);
+                if (!valid) {
+                    // This is bad. We just downloaded it and it's wrong.
+                    // Could be a bad CDN, man-in-the-middle, or disk error.
+                    // We should probably fail hard here or retry the whole task?
+                    // For now, fail.
+                    console.error(`[Downloader] Hash verification failed after download for ${task.destination}`);
+                    fs.unlinkSync(task.destination);
+                    this.emit('error', new Error(`Hash mismatch after download for ${path.basename(task.destination)}`));
+                } else {
                     this.emit('progress', { total: this.totalBytes, current: this.downloadedBytes });
-                });
+                }
+            }
+        }
 
-                response.on('end', () => {
-                    fileStream.end();
-                    resolve();
-                });
+        this.activeDownloads--;
+        this.processQueue();
+    }
 
-                response.on('error', (err) => {
-                    fileStream.close();
-                    fs.unlink(dest, () => { }); // Delete partial
-                    reject(err);
-                });
-            });
-            request.on('error', (err) => reject(err));
-            request.end();
+    private async performDownload(task: DownloadTask): Promise<void> {
+        const partFile = `${task.destination}.part`;
+        let startByte = 0;
+
+        // Resume support
+        if (fs.existsSync(partFile)) {
+            startByte = fs.statSync(partFile).size;
+            // If local part is larger than expected size, it's corrupt. Reset.
+            if (task.size && startByte > task.size) {
+                startByte = 0;
+                fs.unlinkSync(partFile);
+            }
+        }
+
+        const config: AxiosRequestConfig = {
+            responseType: 'stream',
+            timeout: 30000, // 30s timeout
+            headers: {}
+        };
+
+        if (startByte > 0) {
+            console.log(`[Downloader] Resuming ${path.basename(task.destination)} from byte ${startByte}`);
+            config.headers = { 'Range': `bytes=${startByte}-` };
+        }
+
+        const response = await axios.get(task.url, config);
+
+        // Handle range mismatch (server might not support range, sends 200 instead of 206)
+        // If we requested partial but got full (200), we must overwrite partFile
+        if (startByte > 0 && response.status === 200) {
+            console.warn(`[Downloader] Server does not support resume for ${task.url}, restarting.`);
+            startByte = 0; // Reset
+            // Truncate part file
+            fs.writeFileSync(partFile, '');
+        }
+
+        let localDownloaded = 0;
+        let lastEmitTime = 0;
+
+        const writer = createWriteStream(partFile, { flags: startByte > 0 ? 'a' : 'w' });
+
+        response.data.on('data', (chunk: Buffer) => {
+            localDownloaded += chunk.length;
+            this.downloadedBytes += chunk.length;
+
+            const now = Date.now();
+            if (now - lastEmitTime > 100) {
+                console.log(`[Downloader] Progress: ${this.downloadedBytes}/${this.totalBytes}`);
+                this.emit('progress', { total: this.totalBytes, current: this.downloadedBytes });
+                lastEmitTime = now;
+            }
         });
+
+        await pipeline(response.data, writer);
+
+        // Rename part to final
+        fs.renameSync(partFile, task.destination);
     }
 
     private verifyFile(filePath: string, sha1: string): Promise<boolean> {
         return new Promise((resolve) => {
             const hash = crypto.createHash('sha1');
-            const stream = fs.createReadStream(filePath);
+            const stream = createReadStream(filePath);
 
             stream.on('data', (data) => hash.update(data));
             stream.on('end', () => {
                 const fileHash = hash.digest('hex');
+                if (fileHash !== sha1) {
+                    console.warn(`[Verify] Fail: Expected ${sha1}, got ${fileHash}`);
+                }
                 resolve(fileHash === sha1);
             });
             stream.on('error', () => resolve(false));

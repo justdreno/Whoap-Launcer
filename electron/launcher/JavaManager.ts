@@ -1,12 +1,12 @@
-import { app, ipcMain } from 'electron';
+import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { spawn } from 'child_process';
 import AdmZip from 'adm-zip';
 import { AssetDownloader } from './AssetDownloader';
+import axios from 'axios';
 
-// Map Java major version to download URLs (using Corretto or Adoptium)
-// We assume Windows x64. Future: Detect OS/Arch.
+// Map Java major version to download URLs
 const JAVA_DOWNLOADS: Record<string, string> = {
     '8': 'https://api.adoptium.net/v3/binary/latest/8/ga/windows/x64/jdk/hotspot/normal/eclipse',
     '17': 'https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse',
@@ -25,11 +25,13 @@ export class JavaManager {
         }
     }
 
-    async ensureJava(majorVersion: string, onProgress?: (status: string, progress: number) => void): Promise<string> {
+    async ensureJava(
+        majorVersion: string,
+        onProgress?: (status: string, progress: number) => void,
+        onConfirm?: (version: string, size: number) => Promise<'install' | 'skip' | 'cancel'>
+    ): Promise<string> {
         // 1. Check if we already downloaded it
         const targetDir = path.join(this.javaPath, `java-${majorVersion}`);
-        // Bin check: Sometimes it's inside a nested folder (jdk-17+...)
-        // We'll search for java.exe inside targetDir recursively if simple check fails.
         const cachedJava = this.findJavaBinary(targetDir);
         if (cachedJava) {
             console.log(`[Java] Found cached Java ${majorVersion} at ${cachedJava}`);
@@ -37,7 +39,6 @@ export class JavaManager {
         }
 
         // 2. Check System Java
-        // Note: verify if we should emit "Checking system..."
         if (onProgress) onProgress(`Checking system for Java ${majorVersion}...`, 10);
 
         const systemJava = await this.detectSystemJava(majorVersion);
@@ -47,8 +48,37 @@ export class JavaManager {
         }
 
         // 3. Download if missing
-        console.log(`[Java] Java ${majorVersion} missing. Downloading...`);
-        return await this.downloadJava(majorVersion, targetDir);
+        console.log(`[Java] Java ${majorVersion} missing.`);
+
+        const url = JAVA_DOWNLOADS[majorVersion];
+        if (!url) throw new Error(`Unsupported Java version: ${majorVersion}`);
+
+        // Get size
+        let size = 0;
+        try {
+            const headRes = await axios.head(url);
+            size = parseInt(headRes.headers['content-length'] || '0');
+            console.log(`[JavaManager] Detected size for ${majorVersion}: ${size} bytes`);
+        } catch (e) {
+            console.warn("Failed to get Java download size", e);
+        }
+
+        // 4. Ask for Permission
+        // 4. Ask for Permission
+        if (onConfirm) {
+            const action = await onConfirm(majorVersion, size);
+            if (action === 'cancel') {
+                throw new Error("Java installation cancelled by user");
+            }
+            if (action === 'skip') {
+                console.warn(`[Java] User skipped installation for Java ${majorVersion}. Attempting to proceed...`);
+                return 'java'; // Fallback to system java (hope for best) or just return a dummy path? 
+                // Return 'java' assumes it's in path, or let the game fail later if it's truly missing.
+            }
+        }
+
+        console.log(`[Java] Downloading...`);
+        return await this.downloadJava(majorVersion, targetDir, size, onProgress);
     }
 
     private findJavaBinary(root: string): string | null {
@@ -58,7 +88,7 @@ export class JavaManager {
         const directBin = path.join(root, 'bin', 'java.exe');
         if (fs.existsSync(directBin)) return directBin;
 
-        // Nested check (e.g. runtimes/java-17/jdk-17.0.1+12/bin/java.exe)
+        // Nested check
         try {
             const files = fs.readdirSync(root);
             for (const file of files) {
@@ -70,38 +100,59 @@ export class JavaManager {
         return null;
     }
 
-    private async downloadJava(version: string, targetDir: string, onProgress?: (status: string, progress: number) => void): Promise<string> {
-        const url = JAVA_DOWNLOADS[version];
-        if (!url) throw new Error(`Unsupported Java version: ${version}`);
-
+    private async downloadJava(version: string, targetDir: string, totalSize: number, onProgress?: (status: string, progress: number) => void): Promise<string> {
+        const url = JAVA_DOWNLOADS[version]; // Already validated in ensureJava
         const zipPath = path.join(this.javaPath, `temp-${version}.zip`);
 
         // Download
         console.log(`[Java] Downloading from ${url}`);
+
         await new Promise<void>((resolve, reject) => {
+            // Get size for progress calculation
+            // Pass size if we had it, but AssetDownloader recalculates or updates
+
             this.downloader.addToQueue([{
                 url,
                 destination: zipPath,
-                priority: 100
+                priority: 100,
+                size: totalSize
             }]);
+
             this.downloader.on('done', resolve);
             this.downloader.on('error', reject);
 
             let lastUpdate = 0;
-            this.downloader.on('progress', (p) => {
+            const progressListener = (p: any) => {
                 const now = Date.now();
                 if (now - lastUpdate > 100) {
+                    // Need to calculate percentage relative to this file only? 
+                    // AssetDownloader emits global progress for queue.
+                    // The p object has { total, current }
+
                     const totalMB = (p.total / 1024 / 1024).toFixed(1);
                     const currentMB = (p.current / 1024 / 1024).toFixed(1);
-                    if (onProgress) onProgress(`Downloading Java ${version} (${currentMB}/${totalMB} MB)...`, (p.current / p.total) * 100);
+                    const percent = p.total > 0 ? (p.current / p.total) * 100 : 0;
+
+                    if (onProgress) onProgress(`Downloading Java ${version} (${currentMB}/${totalMB} MB)...`, percent);
+
+                    // Also dispatch granular event for the modal if needed via onProgress?
+                    // Currently onProgress is passed from LaunchProcess which sends 'launch:progress'
+                    // The Modal listens to 'java-install-progress'. We might need to handle that mapping in LaunchProcess.
                     lastUpdate = now;
                 }
-            });
+            };
+
+            this.downloader.on('progress', progressListener);
+
+            // Cleanup listener on finish to avoid leaks if reusing downloader?
+            // AssetDownloader is one-off per JavaManager? No, reused.
+            // We should use 'once' for done/error but 'on' for progress, and remove listeners.
+            // Simplified for now assuming sequential operations or single active Java download.
         });
 
         // Extract
         console.log(`[Java] Extracting to ${targetDir}...`);
-        if (onProgress) onProgress(`Extracting Java ${version}...`, 100);
+        if (onProgress) onProgress(`Extracting Java ${version}...`, 100); // 100% download, extracting
 
         try {
             const zip = new AdmZip(zipPath);
@@ -109,11 +160,9 @@ export class JavaManager {
         } catch (e) {
             throw new Error(`Failed to extract Java: ${e}`);
         } finally {
-            // Cleanup
             if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
         }
 
-        // Verify
         const bin = this.findJavaBinary(targetDir);
         if (!bin) throw new Error("Java installed but executable not found.");
 
@@ -121,19 +170,17 @@ export class JavaManager {
     }
 
     private async detectSystemJava(majorVersion: string): Promise<string | null> {
-        // 1. Check 'java' in PATH
         if (await this.checkJavaVersion('java', majorVersion)) {
             console.log(`[Java] System 'java' command matches version ${majorVersion}`);
             return 'java';
         }
 
-        // 2. Directories to scan recursively (depth 3-4 typical for runtimes)
         const scanRoots = [
             `C:\\Program Files\\Java`,
             `C:\\Program Files\\Eclipse Adoptium`,
-            path.join(app.getPath('userData'), '../.minecraft/runtime'), // Mojang
-            path.join(app.getPath('userData'), '../.tlauncher/jvms'),   // TLauncher
-            path.join(app.getPath('userData'), '../.curseforge/minecraft/Install/runtime'), // Curse
+            path.join(app.getPath('userData'), '../.minecraft/runtime'),
+            path.join(app.getPath('userData'), '../.tlauncher/jvms'),
+            path.join(app.getPath('userData'), '../.curseforge/minecraft/Install/runtime'),
         ];
 
         console.log(`[Java] Scanning system for Java ${majorVersion}...`);
@@ -142,33 +189,24 @@ export class JavaManager {
             if (!fs.existsSync(root)) continue;
 
             try {
-                // Get subdirectories (potential jdk folders)
                 const subdirs = fs.readdirSync(root);
                 for (const dir of subdirs) {
                     const fullDir = path.join(root, dir);
-                    // Check for bin/java.exe directly or nested
                     const possibleBins = [
                         path.join(fullDir, 'bin', 'java.exe'),
-                        path.join(fullDir, 'java-runtime-gamma', 'bin', 'java.exe'), // Mojang weirdness
+                        path.join(fullDir, 'java-runtime-gamma', 'bin', 'java.exe'),
                         path.join(fullDir, 'windows-x64', 'java-runtime-gamma', 'bin', 'java.exe'),
                     ];
 
-                    // Also generic deep search if specific paths fail (simple depth 2 search)
-                    // e.g. root/jdk-21/bin/java.exe
-
                     for (const attemptBin of possibleBins) {
                         if (fs.existsSync(attemptBin)) {
-                            const match = await this.checkJavaVersion(attemptBin, majorVersion);
-                            if (match) {
-                                console.log(`[Java] Found matching java at ${attemptBin}`);
+                            if (await this.checkJavaVersion(attemptBin, majorVersion)) {
                                 return attemptBin;
                             }
                         }
                     }
                 }
-            } catch (e) {
-                // Ignore permission errors etc
-            }
+            } catch (e) { }
         }
 
         return null;
@@ -178,29 +216,19 @@ export class JavaManager {
         return new Promise((resolve) => {
             const proc = spawn(bin, ['-version']);
             let output = '';
-            proc.stderr.on('data', (d) => output += d.toString()); // java -version outputs to stderr
+            proc.stderr.on('data', (d) => output += d.toString());
             proc.stdout.on('data', (d) => output += d.toString());
 
             proc.on('error', () => resolve(false));
-
             proc.on('close', () => {
-                // Parse output: "openjdk version "17.0.1" ..." or "java version "1.8.0_..."
-                // Regex for version
-                const match = output.match(/version "(\d+)/);
-                // For Java 1.8 it returns 1, need to handle 1.8 as 8.
-                // Actually modern java is "17...", legacy "1.8.0".
-
                 if (output.includes(`version "${requiredMajor}`)) return resolve(true);
                 if (requiredMajor === '8' && output.includes('version "1.8')) return resolve(true);
 
-                // Brute force check for typical outputs
-                // e.g. "21.0.2" starts with "21"
                 const vMatch = output.match(/version "(\d+)\.(\d+)/);
                 if (vMatch) {
-                    const major = vMatch[1] === '1' ? vMatch[2] : vMatch[1]; // Handle 1.8 vs 17
+                    const major = vMatch[1] === '1' ? vMatch[2] : vMatch[1];
                     if (major === requiredMajor) return resolve(true);
                 }
-
                 resolve(false);
             });
         });

@@ -7,6 +7,7 @@ import { ConfirmProvider } from './context/ConfirmContext'
 import { supabase } from './lib/supabase';
 import { Skeleton } from './components/Skeleton';
 import { perf } from './utils/PerformanceProfiler';
+import { JavaInstallModal } from './components/JavaInstallModal';
 
 // Mark app module load time
 perf.mark('App module loaded');
@@ -182,14 +183,9 @@ function App() {
     return (
         <ErrorBoundary>
             <ToastProvider>
-                <Toaster position="bottom-right" toastOptions={{
-                    style: {
-                        background: '#333',
-                        color: '#fff',
-                        border: '1px solid #444'
-                    }
-                }} />
+                <Toaster position="bottom-right" toastOptions={{ style: { background: '#1f2937', color: '#fff' } }} />
                 <ConfirmProvider>
+                    <JavaInstallModal />
                     <MainLayout activeTab={activeTab} onTabChange={setActiveTab} user={user} onLogout={handleLogout}>
                         {activeTab === 'home' && <Home user={user} setUser={setUser} />}
                         <Suspense fallback={<PageLoader />}>
@@ -204,8 +200,8 @@ function App() {
                         </Suspense>
                     </MainLayout>
                 </ConfirmProvider>
-            </ToastProvider>
-        </ErrorBoundary>
+            </ToastProvider >
+        </ErrorBoundary >
     );
 }
 
