@@ -7,7 +7,6 @@ import {
     RotateCcw,
     Coffee,
     Cpu,
-    Rocket,
     EyeOff,
     Minimize2,
     Monitor,
@@ -68,16 +67,12 @@ export const Settings = () => {
         const loadConfig = async () => {
             try {
                 const cfg = await window.ipcRenderer.invoke('config:get');
-
-                // Cloud Sync: Fetch & Merge
                 const account = AccountManager.getActive();
                 if (account?.type === 'whoap') {
                     try {
                         const cloudSettings = await CloudManager.fetchSettings(account.uuid);
                         if (cloudSettings) {
-                            console.log("Applied cloud settings:", cloudSettings);
                             Object.assign(cfg, cloudSettings);
-                            // Persist merged changes to local store
                             for (const [key, value] of Object.entries(cloudSettings)) {
                                 await window.ipcRenderer.invoke('config:set', key, value);
                             }
@@ -86,7 +81,6 @@ export const Settings = () => {
                         console.error("Cloud sync failed on load:", err);
                     }
                 }
-
                 setConfig(cfg);
             } catch (error) {
                 console.error("Failed to load config", error);
@@ -104,11 +98,8 @@ export const Settings = () => {
             await window.ipcRenderer.invoke('config:set', key, value);
             const newConfig = { ...config, [key]: value };
             setConfig(newConfig);
-
-            // Cloud Sync: Save
             const account = AccountManager.getActive();
             if (account?.type === 'whoap') {
-                // Fire and forget
                 CloudManager.saveSettings(newConfig, account.uuid).catch(console.error);
             }
         } catch (e) {
@@ -122,7 +113,6 @@ export const Settings = () => {
         const result = await window.ipcRenderer.invoke('config:set-game-path');
         if (result.success && config) {
             setConfig({ ...config, gamePath: result.path });
-            // Offer to scan for versions after changing path
             setShowVersionScanner(true);
         }
     };
@@ -132,21 +122,15 @@ export const Settings = () => {
         await window.ipcRenderer.invoke('app:reset', mode);
     };
 
-    // Removed broken import and re-declared component here in previous invalid edit.
-    // Restoring correct flow.
-
     const handleVersionImport = async (versions: any[]) => {
         if (versions.length === 0) return;
-
         setProcessing({ message: 'Importing Versions', subMessage: 'Initializing...', progress: 0 });
         try {
             const versionIds = versions.map(v => v.id);
             const result = await window.ipcRenderer.invoke('instance:import-external', versionIds);
-
             if (result.success) {
                 const successCount = result.results.filter((r: any) => r.success).length;
                 const failCount = result.results.length - successCount;
-
                 if (failCount === 0) {
                     showToast(`Successfully imported ${successCount} versions!`, 'success');
                 } else if (successCount > 0) {
@@ -189,7 +173,6 @@ export const Settings = () => {
         }
     };
 
-    // Update handlers
     const checkForUpdates = async () => {
         setUpdateStatus('checking');
         setUpdateInfo(null);
@@ -229,23 +212,15 @@ export const Settings = () => {
     if (loading) {
         return (
             <div className={styles.container}>
-                <PageHeader
-                    title="Settings"
-                    description="Configure your launcher preferences, paths, and performance."
-                />
-                <div className={styles.header} style={{ marginBottom: 0 }}>
-                    {saving && <span className={styles.savingBadge}>Saving...</span>}
-                </div>
-
-                <div className={styles.section}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                        <Skeleton width={18} height={18} />
-                        <Skeleton width={180} height={24} />
-                    </div>
+                <PageHeader title="Settings" description="Configure your launcher preferences, paths, and performance." />
+                <div className={styles.content}>
+                    <Skeleton width="100%" height={120} />
+                    <Skeleton width="100%" height={120} style={{ marginTop: 20 }} />
                 </div>
             </div>
         );
     }
+
     if (!config) return <div className={styles.container}>Failed to load settings.</div>;
 
     return (
@@ -254,293 +229,187 @@ export const Settings = () => {
                 title="Settings"
                 description="Configure your launcher preferences, paths, and performance."
             />
+            {saving && <div className={styles.savingBadge}><RefreshCw size={12} className={styles.spin} /> Saving...</div>}
 
-            <div className={styles.header} style={{ marginBottom: 0 }}>
-                {saving && <span className={styles.savingBadge}>Saving...</span>}
-            </div>
-
-            {/* Paths Section */}
-            <div className={styles.section}>
-                <h2><FolderOpen size={18} className={styles.sectionIcon} /> Launcher Paths</h2>
-                <p className={styles.description}>
-                    Configure where the launcher stores game assets. Point to your <code>.minecraft</code> folder to use TLauncher downloads.
-                </p>
-
-                <div className={styles.settingRow}>
-                    <div className={styles.settingLabel}>Game Data Path</div>
-                    <div className={styles.settingControl}>
-                        <div className={styles.pathDisplay}>{config.gamePath}</div>
-                        <button className={styles.browseBtn} onClick={handleChangeGamePath}>
-                            <FolderOpen size={16} /> Browse
-                        </button>
+            <div className={styles.content}>
+                {/* Paths Section */}
+                <section className={styles.section}>
+                    <h3><FolderOpen size={18} /> Launcher Paths</h3>
+                    <div className={styles.settingRow}>
+                        <div className={styles.labelCol}>
+                            <span className={styles.label}>Game Data Path</span>
+                            <span className={styles.hint}>Where game assets and libraries are stored.</span>
+                        </div>
+                        <div className={styles.controlCol}>
+                            <div className={styles.pathBox}>{config.gamePath}</div>
+                            <button className={styles.btn} onClick={handleChangeGamePath}><FolderOpen size={16} /> Browse</button>
+                        </div>
                     </div>
-                </div>
-            </div>
+                </section>
 
-            {/* Memory Section */}
-            <div className={styles.section}>
-                <h2><Cpu size={18} className={styles.sectionIcon} /> Memory Allocation</h2>
-                <p className={styles.description}>
-                    Set the RAM limits for Minecraft. More RAM helps with modpacks.
-                </p>
+                {/* Memory Section */}
+                <section className={styles.section}>
+                    <h3><Cpu size={18} /> Memory Allocation</h3>
+                    <div className={styles.settingRow}>
+                        <div className={styles.labelCol}>
+                            <span className={styles.label}>Minimum RAM</span>
+                        </div>
+                        <div className={styles.sliderCol}>
+                            <span className={styles.rangeValue}>{config.minRam} MB</span>
+                            <input type="range" min="512" max={config.maxRam} step="256" value={config.minRam} onChange={(e) => updateConfig('minRam', parseInt(e.target.value))} className={styles.slider} />
+                        </div>
+                    </div>
+                    <div className={styles.settingRow}>
+                        <div className={styles.labelCol}>
+                            <span className={styles.label}>Maximum RAM</span>
+                        </div>
+                        <div className={styles.sliderCol}>
+                            <span className={styles.rangeValue}>{config.maxRam} MB ({(config.maxRam / 1024).toFixed(1)} GB)</span>
+                            <input type="range" min={config.minRam} max="16384" step="256" value={config.maxRam} onChange={(e) => updateConfig('maxRam', parseInt(e.target.value))} className={styles.slider} />
+                        </div>
+                    </div>
+                </section>
 
-                <div className={styles.settingRow}>
-                    <div className={styles.settingLabel}>Minimum RAM: {config.minRam} MB</div>
-                    <input
-                        type="range"
-                        min="512"
-                        max={config.maxRam}
-                        step="256"
-                        value={config.minRam}
-                        onChange={(e) => updateConfig('minRam', parseInt(e.target.value))}
-                        className={styles.slider}
-                    />
-                </div>
-
-                <div className={styles.settingRow}>
-                    <div className={styles.settingLabel}>Maximum RAM: {config.maxRam} MB ({(config.maxRam / 1024).toFixed(1)} GB)</div>
-                    <input
-                        type="range"
-                        min={config.minRam}
-                        max="16384"
-                        step="256"
-                        value={config.maxRam}
-                        onChange={(e) => updateConfig('maxRam', parseInt(e.target.value))}
-                        className={styles.slider}
-                    />
-                </div>
-            </div>
-
-            {/* Java Section */}
-            <div className={styles.section}>
-                <div className={styles.sectionHeader}>
-                    <h2><Coffee size={18} className={styles.sectionIcon} /> Java Runtime</h2>
-                    <button className={styles.resetAllBtn} onClick={handleResetAllJava}>
-                        <RotateCcw size={14} /> Reset All
-                    </button>
-                </div>
-                <p className={styles.description}>
-                    Configure Java paths for different versions. Leave blank to auto-detect.
-                </p>
-
-                {JAVA_VERSIONS.map(version => (
-                    <div key={version} className={styles.settingRow}>
-                        <div className={styles.settingLabel}>Java {version}</div>
-                        <div className={styles.settingControl}>
-                            <div className={styles.pathDisplay}>
-                                {config.javaPaths?.[version] ? config.javaPaths[version] : (
-                                    <span className={styles.autoDetect}><RefreshCw size={14} /> Auto-detect</span>
+                {/* Java Section */}
+                <section className={styles.section}>
+                    <div className={styles.sectionHeader}>
+                        <h3><Coffee size={18} /> Java Runtime</h3>
+                        <button className={styles.resetAllBtn} onClick={handleResetAllJava}><RotateCcw size={14} /> Reset All</button>
+                    </div>
+                    {JAVA_VERSIONS.map(version => (
+                        <div key={version} className={styles.settingRow}>
+                            <div className={styles.labelCol}>
+                                <span className={styles.label}>Java {version}</span>
+                            </div>
+                            <div className={styles.controlCol}>
+                                <div className={`${styles.pathBox} ${!config.javaPaths?.[version] ? styles.autoPath : ''}`}>
+                                    {config.javaPaths?.[version] || <><RefreshCw size={14} /> Auto-detect</>}
+                                </div>
+                                <button className={styles.iconBtn} onClick={() => handleSelectJava(version)}><FolderOpen size={16} /></button>
+                                {config.javaPaths?.[version] && (
+                                    <button className={styles.dangerIconBtn} onClick={() => handleResetJava(version)}><RotateCcw size={16} /></button>
                                 )}
                             </div>
-                            <button className={styles.browseBtn} onClick={() => handleSelectJava(version)}>
-                                <FolderOpen size={16} />
-                            </button>
-                            {config.javaPaths?.[version] && (
-                                <button className={styles.resetBtn} onClick={() => handleResetJava(version)}>
-                                    <RotateCcw size={16} />
-                                </button>
+                        </div>
+                    ))}
+                </section>
+
+                {/* Launch Behavior Section */}
+                <section className={styles.section}>
+                    <h3><Monitor size={18} /> Launch Behavior</h3>
+                    <div className={styles.settingRow}>
+                        <div className={styles.labelCol}>
+                            <span className={styles.label}>When game starts</span>
+                        </div>
+                        <div className={styles.radioGroup}>
+                            <label className={`${styles.radioOption} ${config.launchBehavior === 'hide' ? styles.selected : ''}`}>
+                                <input type="radio" name="launchBehavior" value="hide" checked={config.launchBehavior === 'hide'} onChange={() => updateConfig('launchBehavior', 'hide')} />
+                                <EyeOff size={16} /> Hide
+                            </label>
+                            <label className={`${styles.radioOption} ${config.launchBehavior === 'minimize' ? styles.selected : ''}`}>
+                                <input type="radio" name="launchBehavior" value="minimize" checked={config.launchBehavior === 'minimize'} onChange={() => updateConfig('launchBehavior', 'minimize')} />
+                                <Minimize2 size={16} /> Minimize
+                            </label>
+                            <label className={`${styles.radioOption} ${config.launchBehavior === 'keep' ? styles.selected : ''}`}>
+                                <input type="radio" name="launchBehavior" value="keep" checked={config.launchBehavior === 'keep'} onChange={() => updateConfig('launchBehavior', 'keep')} />
+                                <Monitor size={16} /> Keep Open
+                            </label>
+                        </div>
+                    </div>
+                    <div className={styles.settingRow}>
+                        <div className={styles.labelCol}>
+                            <span className={styles.label}>Show Game Console</span>
+                            <span className={styles.hint}>Display log output when game launches.</span>
+                        </div>
+                        <label className={styles.toggle}>
+                            <input type="checkbox" checked={config.showConsoleOnLaunch} onChange={(e) => updateConfig('showConsoleOnLaunch', e.target.checked)} />
+                            <span className={styles.toggleSlider}></span>
+                        </label>
+                    </div>
+                </section>
+
+                {/* Updates Section */}
+                <section className={styles.section}>
+                    <h3><Download size={18} /> Software Updates</h3>
+                    <div className={styles.updateRow}>
+                        {updateStatus === 'idle' && updateInfo?.version === 'latest' && (
+                            <div className={styles.updateStatus}><CheckCircle size={18} color="#10b981" /> You're up to date!</div>
+                        )}
+                        {updateStatus === 'available' && (
+                            <div className={styles.updateStatus} style={{ color: '#f59e0b' }}><Download size={18} /> Version {updateInfo?.version} available</div>
+                        )}
+                        {updateStatus === 'downloading' && (
+                            <div className={styles.updateStatus}><RefreshCw size={18} className={styles.spin} /> Downloading...</div>
+                        )}
+                        {updateStatus === 'ready' && (
+                            <div className={styles.updateStatus} style={{ color: '#10b981' }}><CheckCircle size={18} /> Ready to install!</div>
+                        )}
+                        {updateStatus === 'error' && (
+                            <div className={styles.updateStatus} style={{ color: '#ef4444' }}><AlertTriangle size={18} /> {updateInfo?.error}</div>
+                        )}
+
+                        <div className={styles.updateActions}>
+                            {(updateStatus === 'idle' || updateStatus === 'error') && (
+                                <button className={styles.btn} onClick={checkForUpdates}>Check for Updates</button>
                             )}
+                            {updateStatus === 'checking' && <button className={styles.btn} disabled>Checking...</button>}
+                            {updateStatus === 'available' && <button className={styles.primaryBtn} onClick={downloadUpdate}>Download</button>}
+                            {updateStatus === 'ready' && <button className={styles.primaryBtn} onClick={installUpdate}>Restart & Install</button>}
                         </div>
                     </div>
-                ))}
-            </div>
+                </section>
 
-            {/* Launch Behavior Section */}
-            <div className={styles.section}>
-                <h2><Rocket size={18} className={styles.sectionIcon} /> Launch Behavior</h2>
-                <p className={styles.description}>
-                    What happens to the launcher when you start a game?
-                </p>
-
-                <div className={styles.settingRow}>
-                    <div className={styles.radioGroup}>
-                        <label className={`${styles.radioOption} ${config.launchBehavior === 'hide' ? styles.selected : ''}`}>
-                            <input
-                                type="radio"
-                                name="launchBehavior"
-                                value="hide"
-                                checked={config.launchBehavior === 'hide'}
-                                onChange={() => updateConfig('launchBehavior', 'hide')}
-                            />
-                            <EyeOff size={16} /> Hide to Tray
-                        </label>
-                        <label className={`${styles.radioOption} ${config.launchBehavior === 'minimize' ? styles.selected : ''}`}>
-                            <input
-                                type="radio"
-                                name="launchBehavior"
-                                value="minimize"
-                                checked={config.launchBehavior === 'minimize'}
-                                onChange={() => updateConfig('launchBehavior', 'minimize')}
-                            />
-                            <Minimize2 size={16} /> Minimize
-                        </label>
-                        <label className={`${styles.radioOption} ${config.launchBehavior === 'keep' ? styles.selected : ''}`}>
-                            <input
-                                type="radio"
-                                name="launchBehavior"
-                                value="keep"
-                                checked={config.launchBehavior === 'keep'}
-                                onChange={() => updateConfig('launchBehavior', 'keep')}
-                            />
-                            <Monitor size={16} /> Keep Open
-                        </label>
+                {/* Danger Zone */}
+                <section className={`${styles.section} ${styles.dangerSection}`}>
+                    <h3><Trash2 size={18} /> Danger Zone</h3>
+                    <div className={styles.settingRow}>
+                        <div className={styles.labelCol}>
+                            <span className={styles.label}>Reset Launcher</span>
+                            <span className={styles.hint}>Clear all settings and restart fresh.</span>
+                        </div>
+                        <button className={styles.dangerBtn} onClick={() => setShowResetModal(true)}>Reset Launcher</button>
                     </div>
-                </div>
-
-                <div className={styles.settingRow}>
-                    <label className={styles.toggle}>
-                        <input
-                            type="checkbox"
-                            checked={config.showConsoleOnLaunch}
-                            onChange={(e) => updateConfig('showConsoleOnLaunch', e.target.checked)}
-                        />
-                        <span className={styles.toggleSlider}></span>
-                        Show Game Console on Launch
-                    </label>
-                </div>
+                    <div className={styles.settingRow}>
+                        <div className={styles.labelCol}>
+                            <span className={styles.label}>Scan External Versions</span>
+                            <span className={styles.hint}>Import versions from TLauncher or other launchers.</span>
+                        </div>
+                        <button className={styles.btn} onClick={() => setShowVersionScanner(true)}><FolderSearch size={16} /> Scan</button>
+                    </div>
+                </section>
             </div>
 
-            {/* Software Updates Section */}
-            <div className={styles.section}>
-                <h2><Download size={18} className={styles.sectionIcon} /> Software Updates</h2>
-                <p className={styles.description}>
-                    Check for new versions of the Whoap Launcher.
-                </p>
-
-                <div className={styles.settingRow} style={{ alignItems: 'center', gap: 16 }}>
-                    {updateStatus === 'idle' && updateInfo?.version === 'latest' && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#10b981' }}>
-                            <CheckCircle size={18} /> You're up to date!
-                        </div>
-                    )}
-                    {updateStatus === 'available' && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f59e0b' }}>
-                            <Download size={18} /> Version {updateInfo?.version} is available!
-                        </div>
-                    )}
-                    {updateStatus === 'downloading' && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#3b82f6' }}>
-                            <RefreshCw size={18} className={styles.spinning} /> Downloading update...
-                        </div>
-                    )}
-                    {updateStatus === 'ready' && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#10b981' }}>
-                            <CheckCircle size={18} /> Update ready to install!
-                        </div>
-                    )}
-                    {updateStatus === 'error' && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#ef4444' }}>
-                            <AlertTriangle size={18} /> {updateInfo?.error || 'Update check failed'}
-                        </div>
-                    )}
-                </div>
-
-                <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
-                    {(updateStatus === 'idle' || updateStatus === 'error') && (
-                        <button className={styles.browseBtn} onClick={checkForUpdates}>
-                            Check for Updates
-                        </button>
-                    )}
-                    {updateStatus === 'checking' && (
-                        <button className={styles.browseBtn} disabled>
-                            Checking...
-                        </button>
-                    )}
-                    {updateStatus === 'available' && (
-                        <button className={styles.browseBtn} onClick={downloadUpdate} style={{ background: '#f59e0b', color: 'black' }}>
-                            Download Update
-                        </button>
-                    )}
-                    {updateStatus === 'ready' && (
-                        <button className={styles.browseBtn} onClick={installUpdate} style={{ background: '#10b981', color: 'white' }}>
-                            Restart & Install
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            {/* Danger Zone */}
-            <div className={styles.section} style={{ borderColor: '#ff4444', marginTop: 40 }}>
-                <h2 style={{ color: '#ff4444', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Trash2 size={18} /> Danger Zone
-                </h2>
-                <p className={styles.description}>Reset the application to clear configurations and start fresh.</p>
-
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
-                    <button
-                        className={styles.browseBtn}
-                        style={{ background: '#ff4444', color: 'white', border: 'none', padding: '10px 20px', fontSize: '1em' }}
-                        onClick={() => setShowResetModal(true)}
-                    >
-                        Reset Launcher
-                    </button>
-
-                    <button
-                        className={styles.browseBtn}
-                        style={{ background: '#333', color: 'white', border: '1px solid #555', padding: '10px 20px', fontSize: '1em' }}
-                        onClick={() => setShowVersionScanner(true)}
-                    >
-                        <FolderSearch size={16} style={{ marginRight: 8 }} />
-                        Scan Versions
-                    </button>
-                </div>
-            </div>
-
-            {/* Reset Confirmation Modal */}
+            {/* Reset Modal */}
             {showResetModal && (
-                <div className={styles.modalOverlay} onClick={(e) => e.target === e.currentTarget && setShowResetModal(false)}>
-                    <div className={styles.resetModal}>
-                        <div className={styles.resetModalHeader}>
-                            <AlertTriangle size={24} color="#ff4444" />
+                <div className={styles.modalOverlay} onClick={() => setShowResetModal(false)}>
+                    <div className={styles.modal} onClick={e => e.stopPropagation()}>
+                        <div className={styles.modalHeader}>
+                            <AlertTriangle size={24} color="#ef4444" />
                             <h3>Reset Launcher</h3>
-                            <button className={styles.modalCloseBtn} onClick={() => setShowResetModal(false)}>
-                                <X size={18} />
-                            </button>
+                            <button className={styles.closeBtn} onClick={() => setShowResetModal(false)}><X size={18} /></button>
                         </div>
-
-                        <div className={styles.resetModalContent}>
-                            <p>Choose how you want to reset the launcher:</p>
-
+                        <div className={styles.modalBody}>
+                            <p>Choose reset mode:</p>
                             <div className={styles.resetOption} onClick={() => handleReset('database')}>
-                                <div className={styles.resetOptionTitle}>Clear Settings Only</div>
-                                <div className={styles.resetOptionDesc}>
-                                    Clears configurations, accounts, and preferences.
-                                    <strong> Game files and instances are kept</strong> - you can re-import them after restart.
-                                </div>
+                                <strong>Clear Settings Only</strong>
+                                <span>Clears configurations and accounts. Game files are kept.</span>
                             </div>
-
-                            <div className={styles.resetOption} style={{ borderColor: '#ff4444' }} onClick={() => handleReset('full')}>
-                                <div className={styles.resetOptionTitle} style={{ color: '#ff4444' }}>Full Reset</div>
-                                <div className={styles.resetOptionDesc}>
-                                    <strong>Deletes everything</strong> including launcher-created instances.
-                                    TLauncher/external versions are not affected.
-                                </div>
+                            <div className={`${styles.resetOption} ${styles.dangerOption}`} onClick={() => handleReset('full')}>
+                                <strong>Full Reset</strong>
+                                <span>Deletes everything including instances.</span>
                             </div>
                         </div>
-
-                        <div className={styles.resetModalFooter}>
-                            <button className={styles.cancelBtn} onClick={() => setShowResetModal(false)}>
-                                Cancel
-                            </button>
-                        </div>
+                        <button className={styles.cancelBtn} onClick={() => setShowResetModal(false)}>Cancel</button>
                     </div>
                 </div>
             )}
 
-            {/* Version Scanner Modal */}
             {showVersionScanner && (
-                <VersionScannerModal
-                    onClose={() => setShowVersionScanner(false)}
-                    onImport={handleVersionImport}
-                />
+                <VersionScannerModal onClose={() => setShowVersionScanner(false)} onImport={handleVersionImport} />
             )}
 
             {processing && (
-                <ProcessingModal
-                    message={processing.message}
-                    subMessage={processing.subMessage}
-                    progress={processing.progress}
-                />
+                <ProcessingModal message={processing.message} subMessage={processing.subMessage} progress={processing.progress} />
             )}
         </div>
     );

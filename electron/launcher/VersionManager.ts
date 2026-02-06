@@ -3,6 +3,8 @@ import { ipcMain, net } from 'electron';
 const VANILLA_MANIFEST_URL = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
 const FABRIC_LOADER_URL = 'https://meta.fabricmc.net/v2/versions/loader';
 const FABRIC_GAME_URL = 'https://meta.fabricmc.net/v2/versions/game';
+const FORGE_MANIFEST_URL = 'https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml';
+const NEOFORGE_MANIFEST_URL = 'https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml';
 
 export interface MinecraftVersion {
     id: string;
@@ -58,6 +60,8 @@ export class VersionManager {
     private vanillaManifest: VersionManifest | null = null;
     private fabricLoaders: FabricLoaderVersion[] = [];
     private fabricGames: { version: string; stable: boolean }[] = [];
+    private forgeVersions: string[] = [];
+    private neoforgeVersions: string[] = [];
 
     constructor() {
         this.registerListeners();
@@ -111,6 +115,21 @@ export class VersionManager {
             }
         });
 
+        // Fetch Forge versions for a game version
+        ipcMain.handle('versions:get-forge-loaders', async (_, gameVersion: string) => {
+            return await VersionManager.getForgeLoaders(gameVersion);
+        });
+
+        // Fetch NeoForge versions for a game version
+        ipcMain.handle('versions:get-neoforge-loaders', async (_, gameVersion: string) => {
+            return await VersionManager.getNeoForgeLoaders(gameVersion);
+        });
+
+        // Fetch Quilt versions for a game version
+        ipcMain.handle('versions:get-quilt-loaders', async (_, gameVersion: string) => {
+            return await VersionManager.getQuiltLoaders(gameVersion);
+        });
+
         // Get version details (for downloading assets/libraries)
         ipcMain.handle('versions:get-details', async (_, versionId: string) => {
             try {
@@ -138,6 +157,52 @@ export class VersionManager {
             this.fabricLoaders = [];
             this.fabricGames = [];
             return { success: true };
+        });
+    }
+
+    static async getForgeLoaders(gameVersion: string): Promise<any> {
+        try {
+            const data = await fetchJson<any>(`https://meta.creeperhost.net/minecraft/forge/versions/${gameVersion}`);
+            return { success: true, loaders: data || [] };
+        } catch (error) {
+            console.error('[VersionManager] Failed to fetch Forge loaders:', error);
+            return { success: false, error: String(error) };
+        }
+    }
+
+    static async getNeoForgeLoaders(gameVersion: string): Promise<any> {
+        try {
+            const text = await VersionManager.fetchText(NEOFORGE_MANIFEST_URL);
+            const versions = [...text.matchAll(/<version>(.*?)<\/version>/g)].map(m => m[1]);
+            const filtered = versions.filter(v => v.startsWith(gameVersion) || v.includes(gameVersion)).reverse();
+            return { success: true, loaders: filtered };
+        } catch (error) {
+            console.error('[VersionManager] Failed to fetch NeoForge loaders:', error);
+            return { success: false, error: String(error) };
+        }
+    }
+
+    static async getQuiltLoaders(gameVersion: string): Promise<any> {
+        try {
+            const data = await fetchJson<any>(`https://meta.quiltmc.org/v3/versions/loader/${gameVersion}`);
+            return { success: true, loaders: data.map((l: any) => ({ id: l.loader.version, stable: true })) };
+        } catch (error) {
+            console.error('[VersionManager] Failed to fetch Quilt loaders:', error);
+            return { success: false, error: String(error) };
+        }
+    }
+
+    private static async fetchText(url: string): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const request = net.request(url);
+            let data = '';
+            request.on('response', (response) => {
+                response.on('data', (chunk) => data += chunk.toString());
+                response.on('end', () => resolve(data));
+                response.on('error', (err) => reject(err));
+            });
+            request.on('error', (err) => reject(err));
+            request.end();
         });
     }
 

@@ -27,6 +27,17 @@ export const InstanceApi = {
     getFabricLoaders: async (version: string): Promise<{ id: string; stable: boolean }[]> => {
         return window.ipcRenderer.invoke('meta:get-fabric-loaders', version);
     },
+    getForgeLoaders: async (version: string): Promise<string[]> => {
+        const res = await window.ipcRenderer.invoke('meta:get-forge-loaders', version);
+        return res.success ? res.loaders : [];
+    },
+    getNeoForgeLoaders: async (version: string): Promise<string[]> => {
+        const res = await window.ipcRenderer.invoke('meta:get-neoforge-loaders', version);
+        return res.success ? res.loaders : [];
+    },
+    getQuiltLoaders: async (version: string): Promise<{ id: string; stable: boolean }[]> => {
+        return window.ipcRenderer.invoke('meta:get-quilt-loaders', version);
+    },
     list: async (): Promise<Instance[]> => {
         return window.ipcRenderer.invoke('instance:list');
     },

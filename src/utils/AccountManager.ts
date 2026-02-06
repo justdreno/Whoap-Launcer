@@ -5,6 +5,7 @@ export interface StoredAccount {
     refreshToken?: string;
     expiresAt?: number;
     type: 'microsoft' | 'offline' | 'whoap';
+    preferredSkin?: string;
 }
 
 const STORAGE_KEY = 'whoap_accounts';
@@ -23,10 +24,16 @@ export const AccountManager = {
 
     addAccount: (account: StoredAccount) => {
         const accounts = AccountManager.getAccounts();
-        // Remove existing if same UUID or name (for offline)
-        const filtered = accounts.filter(a => a.uuid !== account.uuid);
-        filtered.push(account);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+        const index = accounts.findIndex(a => a.uuid === account.uuid);
+
+        if (index !== -1) {
+            // Merge existing data (like preferredSkin) with new data
+            accounts[index] = { ...accounts[index], ...account };
+        } else {
+            accounts.push(account);
+        }
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
         AccountManager.setActive(account.uuid);
     },
 
@@ -45,5 +52,14 @@ export const AccountManager = {
         if (!uuid) return null;
         const accounts = AccountManager.getAccounts();
         return accounts.find(a => a.uuid === uuid) || null;
+    },
+
+    updateAccount: (uuid: string, data: Partial<StoredAccount>) => {
+        const accounts = AccountManager.getAccounts();
+        const index = accounts.findIndex(a => a.uuid === uuid);
+        if (index !== -1) {
+            accounts[index] = { ...accounts[index], ...data };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+        }
     }
 };

@@ -7,6 +7,7 @@ export interface StoredSession {
     token: string;
     refreshToken?: string;
     expiresAt?: number;
+    preferredSkin?: string;
 }
 
 interface StoreSchema {

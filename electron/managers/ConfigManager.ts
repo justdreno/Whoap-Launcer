@@ -1,6 +1,7 @@
 import Store from 'electron-store';
 import { app, ipcMain, dialog } from 'electron';
 import path from 'path';
+import { VersionUtils } from '../utils/VersionUtils';
 
 interface JavaPaths {
     [version: string]: string; // e.g., { "8": "path/to/java8", "17": "auto", "21": "path/to/java21" }
@@ -128,15 +129,14 @@ export class ConfigManager {
                     const jsonPath = path.join(versionsPath, folder, `${folder}.json`);
 
                     if (fs.existsSync(jsonPath)) {
-                        // Detect loader type
-                        const loader = this.detectLoaderFromJson(jsonPath, folder);
-                        const version = this.extractVersion(folder);
+                        // Use the new VersionUtils for robust extraction
+                        const info = VersionUtils.getInfo(jsonPath, folder);
 
                         results.push({
                             id: folder,
-                            name: folder,
-                            version: version,
-                            loader: loader
+                            name: info.name,
+                            version: info.mcVersion,
+                            loader: info.loader
                         });
                     }
 
@@ -159,46 +159,6 @@ export class ConfigManager {
         });
     }
 
-    private detectLoaderFromJson(jsonPath: string, id: string): string {
-        try {
-            const fs = require('fs');
-            const content = fs.readFileSync(jsonPath, 'utf-8');
-            const data = JSON.parse(content);
-            const lowerId = id.toLowerCase();
-
-            // Check ID/Name heuristics
-            if (lowerId.includes('neoforge')) return 'neoforge';
-            if (lowerId.includes('forge')) return 'forge';
-            if (lowerId.includes('fabric')) return 'fabric';
-            if (lowerId.includes('quilt')) return 'quilt';
-
-            // Check JSON mainClass
-            const mainClass = data.mainClass || '';
-            if (mainClass.includes('fabric')) return 'fabric';
-            if (mainClass.includes('forge') || mainClass.includes('cpw.mods')) return 'forge';
-            if (mainClass.includes('quilt')) return 'quilt';
-
-            // Libraries check
-            if (data.libraries && Array.isArray(data.libraries)) {
-                const libs = data.libraries.map((l: any) => l.name || '');
-                if (libs.some((n: string) => n.includes('net.fabricmc:fabric-loader'))) return 'fabric';
-                if (libs.some((n: string) => n.includes('net.neoforged'))) return 'neoforge';
-                if (libs.some((n: string) => n.includes('minecraftforge'))) return 'forge';
-                if (libs.some((n: string) => n.includes('org.quiltmc'))) return 'quilt';
-            }
-
-            return 'vanilla';
-        } catch {
-            return 'vanilla';
-        }
-    }
-
-    private extractVersion(folderId: string): string {
-        // Try to extract MC version from folder name
-        // Common patterns: "1.20.4", "fabric-loader-0.15.0-1.20.4", "1.20.4-forge-49.0.0"
-        const mcVersionMatch = folderId.match(/(\d+\.\d+(?:\.\d+)?)/);
-        return mcVersionMatch ? mcVersionMatch[1] : folderId;
-    }
 
     // Static getters for use in other managers
     static getGamePath(): string {

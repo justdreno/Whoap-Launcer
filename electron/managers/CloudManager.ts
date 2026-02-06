@@ -1,7 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Instance } from './InstanceManager';
 import { ipcMain } from 'electron';
-import { SkinServerManager } from './SkinServerManager';
 
 // Reusing credentials from src/lib/supabase.ts
 // Ideally these should be in .env but for MVP consistency we match existing codebase
@@ -61,8 +60,7 @@ export class CloudManager {
                 return { success: false, error: 'User not found' };
             }
 
-            // Register this user in the skin server cache
-            SkinServerManager.registerPlayer(data.id, data.username, data.id);
+
 
             return { success: true, user: { uuid: data.id, name: data.username } };
         } catch (e) {
@@ -91,8 +89,7 @@ export class CloudManager {
             }
 
             const users = (data || []).map(user => {
-                // Register each user in the skin server cache
-                SkinServerManager.registerPlayer(user.id, user.username, user.id);
+
                 return { uuid: user.id, name: user.username };
             });
 
@@ -116,8 +113,6 @@ export class CloudManager {
                 .single();
 
             if (data) {
-                // This is a Whoap user - register with their real Whoap UUID
-                SkinServerManager.registerPlayer(uuid, username, data.id);
                 console.log(`[Cloud] ✓ Registered Whoap user: ${username} (${data.id})`);
                 return { success: true, isWhoapUser: true };
             } else {

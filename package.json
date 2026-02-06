@@ -45,14 +45,12 @@
     "minecraft-launcher-core": "^3.18.2",
     "minecraft-server-util": "^5.4.4",
     "msmc": "^5.0.5",
-    "node-rsa": "^1.1.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-hot-toast": "^2.6.0",
     "react-markdown": "^10.1.0",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
-    "skinview3d": "^3.4.1",
     "uuid": "^13.0.0"
   }
 }

@@ -22,7 +22,6 @@ const ModpackBrowser = lazy(() => import('./pages/ModpackBrowser').then(m => ({ 
 const ModsManager = lazy(() => import('./pages/ModsManager').then(m => ({ default: m.ModsManager })));
 const News = lazy(() => import('./pages/News').then(m => ({ default: m.News })));
 const Friends = lazy(() => import('./pages/Friends').then(m => ({ default: m.Friends })));
-const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
 const Screenshots = lazy(() => import('./pages/Screenshots').then(m => ({ default: m.Screenshots })));
 
@@ -68,11 +67,17 @@ function App() {
                     // Fetch role from database dynamically
                     let role = 'user';
                     if (result.profile.type === 'whoap') {
-                        try {
-                            const { ProfileService } = await import('./services/ProfileService');
-                            role = await ProfileService.getRole(result.profile.uuid);
-                        } catch (e) {
-                            console.warn("[App] Could not fetch role, defaulting to 'user'");
+                        // Only fetch role if online, otherwise default to user
+                        if (navigator.onLine) {
+                            try {
+                                const { ProfileService } = await import('./services/ProfileService');
+                                // Add a short timeout to prevent hanging on flaky connections
+                                const rolePromise = ProfileService.getRole(result.profile.uuid);
+                                const timeout = new Promise<string>((_, r) => setTimeout(() => r(new Error('Timeout')), 2000));
+                                role = await Promise.race([rolePromise, timeout]) as string;
+                            } catch (e) {
+                                console.warn("[App] Could not fetch role (offline or timeout), defaulting to 'user'");
+                            }
                         }
                     }
 
@@ -86,10 +91,14 @@ function App() {
                     });
 
                     // If it's a legacy whoap account from storage, refresh preferredSkin from Supabase
-                    if (result.profile.type === 'whoap') {
+                    if (result.profile.type === 'whoap' && navigator.onLine) {
                         try {
                             const { ProfileService } = await import('./services/ProfileService');
-                            const dbProfile = await ProfileService.getProfile(result.profile.uuid);
+                            // Add timeout race
+                            const profilePromise = ProfileService.getProfile(result.profile.uuid);
+                            const timeout = new Promise<any>((_, r) => setTimeout(() => r(new Error('Timeout')), 2000));
+                            const dbProfile = await Promise.race([profilePromise, timeout]) as any;
+
                             if (dbProfile?.preferred_skin) {
                                 setUser((prev: any) => ({ ...prev, preferredSkin: dbProfile.preferred_skin }));
                             }
@@ -99,9 +108,13 @@ function App() {
                     }
 
                     // Sync Supabase session if it's a whoap account
-                    if (result.profile.type === 'whoap' && result.profile.token) {
-                        const { CloudManager } = await import('./utils/CloudManager');
-                        CloudManager.syncSession(result.profile.token, result.profile.refreshToken);
+                    if (result.profile.type === 'whoap' && result.profile.token && navigator.onLine) {
+                        try {
+                            const { CloudManager } = await import('./utils/CloudManager');
+                            CloudManager.syncSession(result.profile.token, result.profile.refreshToken);
+                        } catch (e) {
+                            console.warn("[App] Failed to sync session");
+                        }
                     }
                 }
             } catch (e) {
@@ -178,16 +191,15 @@ function App() {
                 }} />
                 <ConfirmProvider>
                     <MainLayout activeTab={activeTab} onTabChange={setActiveTab} user={user} onLogout={handleLogout}>
-                        {activeTab === 'home' && <Home user={user} />}
+                        {activeTab === 'home' && <Home user={user} setUser={setUser} />}
                         <Suspense fallback={<PageLoader />}>
                             {activeTab === 'profiles' && <Instances />}
                             {activeTab === 'screenshots' && <Screenshots user={user} />}
                             {activeTab === 'settings' && <Settings />}
                             {activeTab === 'modpacks' && <ModpackBrowser isOnline={isOnline} />}
-                            {activeTab === 'mods' && <ModsManager user={user} isOnline={isOnline} />}
+                            {activeTab === 'mods' && <ModsManager user={user} />}
                             {activeTab === 'friends' && <Friends isOnline={isOnline} />}
                             {activeTab === 'news' && <News />}
-                            {activeTab === 'profile' && <Profile user={user} />}
                             {activeTab === 'admin' && <Admin user={user} />}
                         </Suspense>
                     </MainLayout>

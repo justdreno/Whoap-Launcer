@@ -1,408 +1,598 @@
 .container {
-    padding: 2rem;
-    color: #e0e0e0;
-    font-family: 'Inter', sans-serif;
+    padding: 40px;
     height: 100%;
     overflow-y: auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
 }
 
-.header {
+.content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    max-width: 1000px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* Sections */
+.section {
+    padding: 24px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 20px;
+    /* More rounded */
+    backdrop-filter: blur(10px);
+}
+
+.section h3 {
+    margin: 0 0 24px 0;
+    font-size: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #fff;
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 2rem;
+    opacity: 0.9;
 }
 
-.header h1 {
-    font-size: 28px;
-    font-weight: 700;
-    margin: 0;
-    flex: 1;
-    color: #fff;
-}
-
-.savingBadge {
-    font-size: 0.75rem;
-    background: #ff880033;
-    color: #ff8800;
-    padding: 4px 10px;
-    border-radius: 12px;
-}
-
-.section {
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.section h2 {
-    font-size: 1.1rem;
-    font-weight: 500;
-    margin-top: 0;
-    margin-bottom: 0.5rem;
-    color: #ff8800;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.sectionIcon {
-    color: #ff8800;
-}
-
-.autoDetect {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: #888;
-    font-style: italic;
-}
-
-.sectionHeader {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-}
-
-.sectionHeader h2 {
-    margin: 0;
-}
-
-.resetAllBtn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(255, 100, 100, 0.1);
-    border: 1px solid rgba(255, 100, 100, 0.3);
-    color: #ff6666;
-    padding: 6px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.8rem;
-    transition: all 0.2s;
-}
-
-.resetAllBtn:hover {
-    background: rgba(255, 100, 100, 0.2);
-    border-color: rgba(255, 100, 100, 0.5);
-}
-
-.description {
-    font-size: 0.9rem;
-    color: #888;
-    margin-bottom: 1.5rem;
-    line-height: 1.5;
-}
-
-.description code {
-    background: rgba(0, 0, 0, 0.3);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-family: monospace;
+.section h3 svg {
+    color: #ffaa00;
 }
 
 .settingRow {
-    margin-bottom: 1.5rem;
-}
-
-.settingLabel {
-    font-size: 0.9rem;
-    font-weight: 500;
-    margin-bottom: 0.5rem;
-    color: #ccc;
-}
-
-.settingControl {
     display: flex;
-    gap: 10px;
+    justify-content: space-between;
     align-items: center;
+    padding: 20px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-.pathDisplay {
+.settingRow:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.settingRow:first-of-type {
+    padding-top: 0;
+}
+
+.labelCol {
     flex: 1;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid #333;
-    padding: 10px 12px;
-    border-radius: 6px;
-    font-family: monospace;
-    font-size: 0.85rem;
-    color: #aaa;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    padding-right: 32px;
 }
 
-.browseBtn,
-.resetBtn {
+.label {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    color: #f4f4f5;
+    margin-bottom: 6px;
+}
+
+.hint {
+    display: block;
+    font-size: 13px;
+    color: #a1a1aa;
+    line-height: 1.5;
+}
+
+.controlCol {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.sliderCol {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    min-width: 260px;
+}
+
+/* Modern Buttons */
+.btn {
+    padding: 10px 18px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    color: #e4e4e7;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     align-items: center;
     gap: 8px;
-    background: #333;
+}
+
+.btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.primaryBtn {
+    padding: 10px 22px;
+    background: linear-gradient(135deg, #ffaa00, #ff8800);
+    color: #000;
     border: none;
-    color: white;
-    padding: 10px 16px;
-    border-radius: 6px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 13px;
     cursor: pointer;
-    font-weight: 500;
-    transition: all 0.2s;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(255, 170, 0, 0.2);
 }
 
-.browseBtn:hover,
-.resetBtn:hover {
-    background: #444;
+.primaryBtn:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(255, 170, 0, 0.3);
 }
 
-.resetBtn {
-    padding: 10px 12px;
-    background: #442222;
+.iconBtn,
+.dangerIconBtn {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #d4d4d8;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.resetBtn:hover {
-    background: #663333;
+.iconBtn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
 }
 
-/* Range Slider */
+.dangerIconBtn {
+    background: rgba(239, 68, 68, 0.05);
+    border-color: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.dangerIconBtn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.dangerBtn {
+    padding: 10px 18px;
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.1);
+    border-radius: 12px;
+    color: #ef4444;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dangerBtn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+}
+
+/* Modern Input/PathBox */
+.pathBox {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 12px;
+    color: #a1a1aa;
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: border-color 0.2s;
+}
+
+.pathBox:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #e4e4e7;
+}
+
+.autoPath {
+    font-style: italic;
+    color: #71717a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Modern Sliders */
 .slider {
     width: 100%;
     height: 6px;
-    border-radius: 3px;
-    background: #333;
+    background: rgba(255, 255, 255, 0.08);
+    /* Dark track */
+    border-radius: 100px;
     outline: none;
     -webkit-appearance: none;
     appearance: none;
     cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    /* For track fill effect hack if needed, but simple is clean */
+}
+
+/* Progress fill logic usually needs JS for pure CSS input[type=range], 
+   so we'll stick to a really nice thumb and track style. */
+.slider::-webkit-slider-runnable-track {
+    background: linear-gradient(to right, #ffaa00 0%, #ffaa00 var(--progress, 0%), rgba(255, 255, 255, 0.08) var(--progress, 0%), rgba(255, 255, 255, 0.08) 100%);
+    height: 6px;
+    border-radius: 100px;
 }
 
 .slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 18px;
     height: 18px;
+    background: #e4e4e7;
+    /* White/Grey thumb */
     border-radius: 50%;
-    background: #ff8800;
     cursor: pointer;
-    border: 2px solid #222;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-    transition: transform 0.1s;
+    border: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    margin-top: -6px;
+    /* Center it */
+    transition: transform 0.1s, background-color 0.2s;
 }
 
-.slider::-webkit-slider-thumb:hover {
-    transform: scale(1.1);
+.slider:hover::-webkit-slider-thumb {
+    transform: scale(1.15);
+    background: #fff;
 }
 
-.slider::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #ff8800;
-    cursor: pointer;
-    border: 2px solid #222;
+.rangeValue {
+    font-family: 'JetBrains Mono', monospace;
+    color: #ffaa00;
+    font-size: 13px;
+    font-weight: 700;
+    background: rgba(255, 170, 0, 0.1);
+    padding: 2px 8px;
+    border-radius: 6px;
 }
 
-/* Radio Group */
+/* Segmented Control (Radio Group) */
 .radioGroup {
     display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
+    background: #18181b;
+    /* Darker bg */
+    border-radius: 12px;
+    padding: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    gap: 2px;
 }
 
 .radioOption {
+    padding: 8px 16px;
+    cursor: pointer;
+    color: #71717a;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
     gap: 8px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid #333;
-    padding: 10px 16px;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-    color: #aaa;
 }
 
 .radioOption:hover {
-    border-color: #555;
-    background: rgba(255, 255, 255, 0.08);
+    color: #d4d4d8;
+    background: rgba(255, 255, 255, 0.02);
 }
 
 .radioOption.selected {
-    border-color: #ff8800;
-    background: rgba(255, 136, 0, 0.1);
-    color: #ff8800;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 .radioOption input {
     display: none;
 }
 
-/* Toggle Switch */
+/* Modern Toggle */
 .toggle {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    cursor: pointer;
     position: relative;
-    color: #aaa;
-    font-size: 0.9rem;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    cursor: pointer;
 }
 
 .toggle input {
-    position: absolute;
     opacity: 0;
     width: 0;
     height: 0;
 }
 
 .toggleSlider {
-    width: 44px;
-    height: 24px;
-    background: #333;
-    border-radius: 12px;
-    position: relative;
-    transition: background 0.2s;
-}
-
-.toggleSlider::before {
-    content: '';
     position: absolute;
-    width: 18px;
-    height: 18px;
-    background: white;
-    border-radius: 50%;
-    top: 3px;
-    left: 3px;
-    transition: transform 0.2s;
-}
-
-.toggle input:checked+.toggleSlider {
-    background: #ff8800;
-}
-
-.toggle input:checked+.toggleSlider::before {
-    transform: translateX(20px);
-}
-
-/* Reset Modal */
-.modalOverlay {
-    position: fixed;
+    cursor: pointer;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.75);
+    background-color: rgba(255, 255, 255, 0.1);
+    /* Inactive track */
+    border-radius: 99px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid transparent;
+}
+
+.toggleSlider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 2px;
+    bottom: 1px;
+    background-color: #a1a1aa;
+    /* Inactive thumb */
+    border-radius: 50%;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+input:checked+.toggleSlider {
+    background-color: rgba(255, 170, 0, 0.2);
+    border-color: rgba(255, 170, 0, 0.3);
+}
+
+input:checked+.toggleSlider:before {
+    transform: translateX(18px);
+    background-color: #ffaa00;
+    /* Active thumb color */
+    box-shadow: 0 2px 8px rgba(255, 170, 0, 0.4);
+}
+
+/* Section Header for Reset All */
+.sectionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.sectionHeader h3 {
+    margin: 0;
+}
+
+.resetAllBtn {
+    background: transparent;
+    border: none;
+    color: #ef4444;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+    opacity: 0.8;
+}
+
+.resetAllBtn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    opacity: 1;
+}
+
+/* Danger Zone */
+.dangerSection {
+    background: linear-gradient(145deg, rgba(239, 68, 68, 0.03), rgba(239, 68, 68, 0.01));
+    border-color: rgba(239, 68, 68, 0.15);
+}
+
+.dangerSection h3 {
+    color: #f87171;
+}
+
+.dangerSection h3 svg {
+    color: #ef4444;
+}
+
+/* Updates */
+.updateRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.updateStatus {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    color: #e4e4e7;
+    font-weight: 500;
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Saving Badge */
+.savingBadge {
+    position: absolute;
+    top: 32px;
+    right: 48px;
+    color: #ffaa00;
+    background: rgba(255, 170, 0, 0.1);
+    border: 1px solid rgba(255, 170, 0, 0.3);
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: fadeIn 0.3s;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Modal */
+.modalOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    /* Darker backdrop */
+    backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    backdrop-filter: blur(4px);
+    animation: fadeIn 0.2s ease-out;
 }
 
-.resetModal {
-    background: #1a1a1a;
-    border-radius: 16px;
-    width: 90%;
-    max-width: 450px;
-    border: 1px solid #333;
-    overflow: hidden;
+.modal {
+    background: #18181b;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    width: 440px;
+    border-radius: 24px;
+    padding: 32px;
+    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6);
+    transform: translateY(0);
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.resetModalHeader {
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.modalHeader {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 12px;
-    padding: 20px 24px;
-    border-bottom: 1px solid #333;
+    margin-bottom: 28px;
 }
 
-.resetModalHeader h3 {
+.modalHeader h3 {
     margin: 0;
-    flex: 1;
-    font-size: 1.1rem;
-    color: white;
+    color: #fff;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
 }
 
-.modalCloseBtn {
+.closeBtn {
     background: transparent;
     border: none;
-    color: #888;
+    color: #71717a;
     cursor: pointer;
     padding: 8px;
     border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     transition: all 0.2s;
 }
 
-.modalCloseBtn:hover {
-    background: #333;
-    color: white;
-}
-
-.resetModalContent {
-    padding: 20px 24px;
-}
-
-.resetModalContent p {
-    margin: 0 0 16px 0;
-    color: #aaa;
+.closeBtn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
 }
 
 .resetOption {
-    padding: 16px;
-    background: #222;
-    border: 1px solid #444;
-    border-radius: 10px;
-    margin-bottom: 12px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
     cursor: pointer;
-    transition: all 0.2s;
+    margin-bottom: 12px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
 }
 
 .resetOption:hover {
-    border-color: #666;
-    background: #282828;
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: scale(1.01);
 }
 
-.resetOption:last-child {
-    margin-bottom: 0;
+.resetOption strong {
+    display: block;
+    color: #fff;
+    font-size: 15px;
+    margin-bottom: 4px;
 }
 
-.resetOptionTitle {
-    font-weight: 600;
-    color: #ffaa00;
-    margin-bottom: 6px;
-}
-
-.resetOptionDesc {
-    font-size: 0.85rem;
-    color: #888;
+.resetOption span {
+    font-size: 13px;
+    color: #a1a1aa;
     line-height: 1.4;
 }
 
-.resetOptionDesc strong {
-    color: #ccc;
+.dangerOption {
+    border-color: rgba(239, 68, 68, 0.15);
+    background: rgba(239, 68, 68, 0.04);
 }
 
-.resetModalFooter {
-    display: flex;
-    justify-content: flex-end;
-    padding: 16px 24px;
-    border-top: 1px solid #333;
+.dangerOption:hover {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.25);
 }
 
 .cancelBtn {
-    background: #333;
-    color: #ccc;
+    width: 100%;
+    padding: 14px;
+    background: transparent;
     border: none;
-    padding: 10px 20px;
-    border-radius: 8px;
+    color: #71717a;
     cursor: pointer;
-    font-size: 0.95rem;
-    transition: all 0.2s;
+    font-weight: 600;
+    font-size: 14px;
+    margin-top: 12px;
+    transition: color 0.2s;
 }
 
 .cancelBtn:hover {
-    background: #444;
-    color: white;
+    color: #fff;
 }

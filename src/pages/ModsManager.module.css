@@ -1,176 +1,221 @@
 .container {
-    padding: 32px;
+    padding: 32px 40px;
     height: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 32px;
-    overflow: hidden;
+    box-sizing: border-box;
+    overflow-y: auto;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.2) 100%);
 }
 
-.header {
+.topSection {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-end;
+    margin-bottom: 40px;
+    gap: 20px;
 }
 
-.titleArea {
-    display: flex;
-    align-items: center;
-    gap: 16px;
+.searchWrapper {
+    position: relative;
+    width: 320px;
 }
 
-.titleIcon {
-    color: #ffaa00;
+.searchIcon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #666;
+    pointer-events: none;
 }
 
-.header h1 {
-    font-size: 24px;
-    font-weight: 800;
-    margin: 0;
-    color: #fff;
-    letter-spacing: -0.02em;
-}
-
-.searchBox {
-    background: #18181b;
-    border: 1px solid #333;
-    padding: 10px 16px;
+.searchInput {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 300px;
-    transition: all 0.2s;
-}
-
-.searchBox:focus-within {
-    border-color: #ffaa00;
-    box-shadow: 0 0 0 2px rgba(255, 170, 0, 0.1);
-}
-
-.searchBox input {
-    background: transparent;
-    border: none;
+    padding: 12px 16px 12px 42px;
     color: #fff;
     font-size: 14px;
-    width: 100%;
     outline: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.searchInput:focus {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 170, 0, 0.4);
+    box-shadow: 0 0 0 4px rgba(255, 170, 0, 0.1);
+}
+
+.searchInput::placeholder {
+    color: #666;
 }
 
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 20px;
-    overflow-y: auto;
-    padding-bottom: 20px;
+    padding-bottom: 40px;
 }
 
+/* Card Design */
 .card {
-    background: #18181b;
-    border: 1px solid #27272a;
-    border-radius: 18px;
-    padding: 20px;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    cursor: pointer;
     position: relative;
+    height: 160px;
+    border-radius: 20px;
+    cursor: pointer;
     overflow: hidden;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s;
+    background: #18181b;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cardBg {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.03), transparent 70%);
+    pointer-events: none;
+}
+
+.cardContent {
+    position: relative;
+    height: 100%;
+    padding: 20px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    min-height: 140px;
-}
-
-.card:hover {
-    border-color: rgba(255, 170, 0, 0.4);
-    transform: translateY(-4px);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    justify-content: space-between;
 }
 
 .cardHeader {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
 }
 
 .loaderBadge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 8px;
     font-size: 11px;
-    font-weight: 800;
+    font-weight: 700;
     text-transform: uppercase;
-    padding: 4px 10px;
-    border-radius: 6px;
     letter-spacing: 0.05em;
-    background: #333;
-    color: #aaa;
-}
-
-.loaderBadge[data-loader="fabric"] {
-    background: #fffbe6;
-    color: #b7791f;
-}
-
-.loaderBadge[data-loader="forge"] {
-    background: #ebf8ff;
-    color: #2c5282;
-}
-
-.loaderBadge[data-loader="neoforge"] {
-    background: #fff5f5;
-    color: #c53030;
-}
-
-.loaderBadge[data-loader="quilt"] {
-    background: #f0fff4;
-    color: #276749;
+    border: 1px solid transparent;
 }
 
 .version {
-    font-size: 13px;
-    font-weight: 600;
+    font-family: monospace;
     color: #666;
-    background: rgba(255, 255, 255, 0.05);
-    padding: 2px 8px;
-    border-radius: 4px;
+    font-size: 13px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 4px 8px;
+    border-radius: 6px;
 }
 
-.instName {
+.instanceInfo {
+    margin-top: auto;
+}
+
+.instanceName {
+    margin: 0 0 12px 0;
     font-size: 18px;
     font-weight: 700;
     color: #fff;
-    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.meta {
+.actionRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.manageLabel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 13px;
-    color: #888;
+    color: #ccc;
+    font-weight: 500;
 }
 
-.hoverOverlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(255, 170, 0, 0.9);
+.arrowBtn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    color: #000;
-    font-weight: 700;
+    color: #fff;
     opacity: 0;
-    transition: opacity 0.2s;
-    backdrop-filter: blur(4px);
+    transform: translateX(-8px);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.card:hover .hoverOverlay {
+/* Hover States */
+.card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.card:hover .actionRow {
     opacity: 1;
 }
 
+.card:hover .arrowBtn {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+/* Empty State */
 .emptyState {
     grid-column: 1 / -1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 300px;
+    min-height: 400px;
     color: #666;
     text-align: center;
-    gap: 16px;
+}
+
+.emptyIcon {
+    width: 80px;
+    height: 80px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.03);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+    color: #444;
+}
+
+.emptyState h3 {
+    color: #fff;
+    margin: 0 0 8px 0;
+    font-size: 20px;
+}
+
+.emptyState p {
+    margin: 0;
+    font-size: 15px;
+    max-width: 300px;
+    line-height: 1.5;
+}
+
+/* Skeleton */
+.cardSkeleton {
+    height: 160px;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #18181b;
+    border: 1px solid rgba(255, 255, 255, 0.04);
 }

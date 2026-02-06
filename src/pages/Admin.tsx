@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import styles from './Admin.module.css';
-import { Shield, Users, Newspaper, Award, Plus, Trash2, Ban, UserCheck, Save, LayoutDashboard, Settings, GitBranch } from 'lucide-react';
+import { Shield, Users, Newspaper, Award, Plus, Trash2, Ban, UserCheck, Save, LayoutDashboard, Settings, GitBranch, Server, Globe, Edit2, Zap } from 'lucide-react';
 import { ProfileService, UserProfile, Badge as BadgeType } from '../services/ProfileService';
+import { ServerService, FeaturedServer } from '../services/ServerService';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../context/ToastContext';
 import { useConfirm, usePrompt } from '../context/ConfirmContext';
@@ -41,7 +42,7 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
     };
 
     // State definitions
-    const [activeSection, setActiveSection] = useState<'badges' | 'users' | 'news' | 'system'>('badges');
+    const [activeSection, setActiveSection] = useState<'overview' | 'servers' | 'badges' | 'users' | 'news' | 'system'>('overview');
     const [isAdmin, setIsAdmin] = useState(false);
     const [loading, setLoading] = useState(true);
     const { showToast } = useToast();
@@ -53,6 +54,7 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
     const [users, setUsers] = useState<UserProfile[]>([]);
     const [news, setNews] = useState<NewsItem[]>([]);
     const [changelogs, setChangelogs] = useState<ChangelogItem[]>([]);
+    const [featuredServers, setFeaturedServers] = useState<FeaturedServer[]>([]);
     const [currentVersion, setCurrentVersion] = useState('');
     const [newVersion, setNewVersion] = useState('');
 
@@ -65,6 +67,10 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
 
     const [newChangelog, setNewChangelog] = useState<{ version: string, description: string, type: 'release' | 'beta' | 'hotfix' }>({ version: '', description: '', type: 'release' });
     const [showChangelogForm, setShowChangelogForm] = useState(false);
+
+    const [serverForm, setServerForm] = useState<Partial<FeaturedServer>>({ name: '', address: '', icon_url: '', banner_url: '', description: '' });
+    const [showServerForm, setShowServerForm] = useState(false);
+    const [editingServerId, setEditingServerId] = useState<string | null>(null);
 
     const [grantForm, setGrantForm] = useState({ userId: '', badgeId: '' });
 
@@ -89,12 +95,14 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
     }, [user.uuid, authRole]);
 
     const loadData = async () => {
-        const [badgesData, usersData] = await Promise.all([
+        const [badgesData, usersData, serversData] = await Promise.all([
             ProfileService.getAllBadges(),
-            ProfileService.getAllUsers()
+            ProfileService.getAllUsers(),
+            ServerService.getFeaturedServers()
         ]);
         setBadges(badgesData);
         setUsers(usersData);
+        setFeaturedServers(serversData);
         await Promise.all([loadNews(), loadChangelogs(), loadSystemConfig()]);
     };
 
@@ -112,6 +120,51 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
         const version = await SystemService.getAppVersion();
         setCurrentVersion(version);
         setNewVersion(version);
+    };
+
+    // --- Server Handlers ---
+    const handleSaveServer = async () => {
+        if (!serverForm.name || !serverForm.address) return showToast('Name and Address are required', 'error');
+
+        if (editingServerId) {
+            // Update
+            const success = await ServerService.updateServer(editingServerId, serverForm);
+            if (success) {
+                showToast('Server updated', 'success');
+                setFeaturedServers(featuredServers.map(s => s.id === editingServerId ? { ...s, ...serverForm } as FeaturedServer : s));
+                resetServerForm();
+            }
+        } else {
+            // Create
+            const newServer = await ServerService.addServer(serverForm as any);
+            if (newServer) {
+                showToast('Server added', 'success');
+                setFeaturedServers([newServer, ...featuredServers]);
+                resetServerForm();
+            }
+        }
+    };
+
+    const handleEditServer = (server: FeaturedServer) => {
+        setServerForm(server);
+        setEditingServerId(server.id);
+        setShowServerForm(true);
+    };
+
+    const handleDeleteServer = async (id: string) => {
+        if (await confirm('Delete Server', 'Are you sure you want to remove this server?')) {
+            const success = await ServerService.deleteServer(id);
+            if (success) {
+                setFeaturedServers(featuredServers.filter(s => s.id !== id));
+                showToast('Server removed', 'success');
+            }
+        }
+    };
+
+    const resetServerForm = () => {
+        setServerForm({ name: '', address: '', icon_url: '', banner_url: '', description: '' });
+        setEditingServerId(null);
+        setShowServerForm(false);
     };
 
     // --- Badge Handlers ---
@@ -275,35 +328,173 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
             {/* Sidebar Navigation */}
             <div className={styles.sidebar}>
                 <div className={styles.header}>
-                    <LayoutDashboard size={24} color="#ff8800" />
-                    <h2 className={styles.headerTitle}>Admin</h2>
+                    <div className={styles.headerIcon}>
+                        <Shield size={24} color="#ff8800" />
+                    </div>
+                    <div>
+                        <h2 className={styles.headerTitle}>Admin Panel</h2>
+                        <span className={styles.headerSub}>{user.name}</span>
+                    </div>
                 </div>
-                <nav className={styles.nav}>
-                    <button className={`${styles.navItem} ${activeSection === 'badges' ? styles.active : ''}`} onClick={() => setActiveSection('badges')}>
-                        <Award size={18} /> Badges
-                    </button>
-                    <button className={`${styles.navItem} ${activeSection === 'users' ? styles.active : ''}`} onClick={() => setActiveSection('users')}>
-                        <Users size={18} /> Users
-                    </button>
-                    <button className={`${styles.navItem} ${activeSection === 'news' ? styles.active : ''}`} onClick={() => setActiveSection('news')}>
-                        <Newspaper size={18} /> News
-                    </button>
-                    <button className={`${styles.navItem} ${activeSection === 'system' ? styles.active : ''}`} onClick={() => setActiveSection('system')}>
-                        <Settings size={18} /> System
-                    </button>
-                </nav>
+
+                <div className={styles.navGroup}>
+                    <span className={styles.navLabel}>Management</span>
+                    <nav className={styles.nav}>
+                        <button className={`${styles.navItem} ${activeSection === 'overview' ? styles.active : ''}`} onClick={() => setActiveSection('overview')}>
+                            <LayoutDashboard size={18} /> Overview
+                        </button>
+                        <button className={`${styles.navItem} ${activeSection === 'users' ? styles.active : ''}`} onClick={() => setActiveSection('users')}>
+                            <Users size={18} /> Users & Roles
+                        </button>
+                    </nav>
+                </div>
+
+                <div className={styles.navGroup}>
+                    <span className={styles.navLabel}>Content</span>
+                    <nav className={styles.nav}>
+                        <button className={`${styles.navItem} ${activeSection === 'servers' ? styles.active : ''}`} onClick={() => setActiveSection('servers')}>
+                            <Server size={18} /> Featured Servers
+                        </button>
+                        <button className={`${styles.navItem} ${activeSection === 'badges' ? styles.active : ''}`} onClick={() => setActiveSection('badges')}>
+                            <Award size={18} /> Badges
+                        </button>
+                        <button className={`${styles.navItem} ${activeSection === 'news' ? styles.active : ''}`} onClick={() => setActiveSection('news')}>
+                            <Newspaper size={18} /> News & Updates
+                        </button>
+                    </nav>
+                </div>
+
+                <div className={styles.navGroup}>
+                    <span className={styles.navLabel}>System</span>
+                    <nav className={styles.nav}>
+                        <button className={`${styles.navItem} ${activeSection === 'system' ? styles.active : ''}`} onClick={() => setActiveSection('system')}>
+                            <Settings size={18} /> Configuration
+                        </button>
+                    </nav>
+                </div>
             </div>
 
             {/* Main Content */}
             <div className={styles.content}>
-                <PageHeader
-                    title="Administration"
-                    description="Manage badges, users, and launcher news updates."
-                />
+
+                {activeSection === 'overview' && (
+                    <>
+                        <PageHeader title="Dashboard Overview" description="Welcome to the control center." />
+                        <div className={styles.overviewGrid}>
+                            <div className={styles.statCard}>
+                                <div className={styles.statIcon} style={{ background: 'rgba(255, 136, 0, 0.1)', color: '#ff8800' }}><Users size={24} /></div>
+                                <div className={styles.statInfo}>
+                                    <div className={styles.statValue}>{users.length}</div>
+                                    <div className={styles.statLabel}>Total Users</div>
+                                </div>
+                            </div>
+                            <div className={styles.statCard}>
+                                <div className={styles.statIcon} style={{ background: 'rgba(52, 152, 219, 0.1)', color: '#3498db' }}><Server size={24} /></div>
+                                <div className={styles.statInfo}>
+                                    <div className={styles.statValue}>{featuredServers.length}</div>
+                                    <div className={styles.statLabel}>Featured Servers</div>
+                                </div>
+                            </div>
+                            <div className={styles.statCard}>
+                                <div className={styles.statIcon} style={{ background: 'rgba(46, 204, 113, 0.1)', color: '#2ecc71' }}><Zap size={24} /></div>
+                                <div className={styles.statInfo}>
+                                    <div className={styles.statValue}>v{currentVersion}</div>
+                                    <div className={styles.statLabel}>System Version</div>
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {activeSection === 'servers' && (
+                    <>
+                        <div className={styles.sectionHeader}>
+                            <PageHeader title="Featured Servers" description="Drag to reorder. Manage servers promoted on the home page." />
+                            <div style={{ display: 'flex', gap: 10 }}>
+                                <button className={styles.actionBtn} onClick={() => ServerService.reorderServers(featuredServers.map(s => s.id))
+                                    .then(() => showToast('Order saved!', 'success'))}>
+                                    <Save size={18} /> Save Order
+                                </button>
+                                <button className={styles.actionBtn} onClick={() => { resetServerForm(); setShowServerForm(true); }}>
+                                    <Plus size={18} /> Add Server
+                                </button>
+                            </div>
+                        </div>
+
+                        {showServerForm && (
+                            <div className={styles.formCard}>
+                                <h3>{editingServerId ? 'Edit Server' : 'Add New Server'}</h3>
+                                <div className={styles.formGrid}>
+                                    <input className={styles.input} placeholder="Server Name" value={serverForm.name} onChange={e => setServerForm({ ...serverForm, name: e.target.value })} />
+                                    <input className={styles.input} placeholder="Address (IP)" value={serverForm.address} onChange={e => setServerForm({ ...serverForm, address: e.target.value })} />
+                                </div>
+                                <div className={styles.formGrid}>
+                                    <input className={styles.input} placeholder="Icon URL (Optional)" value={serverForm.icon_url} onChange={e => setServerForm({ ...serverForm, icon_url: e.target.value })} />
+                                    <input className={styles.input} placeholder="Banner URL (Optional)" value={serverForm.banner_url} onChange={e => setServerForm({ ...serverForm, banner_url: e.target.value })} />
+                                </div>
+                                <textarea className={styles.textarea} rows={3} placeholder="Description (Optional)" value={serverForm.description} onChange={e => setServerForm({ ...serverForm, description: e.target.value })} />
+                                <div className={styles.formActions}>
+                                    <button className={styles.cancelBtn} onClick={() => setShowServerForm(false)}>Cancel</button>
+                                    <button className={styles.saveBtn} onClick={handleSaveServer}><Save size={16} /> Save Server</button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className={styles.grid}>
+                            {featuredServers.length === 0 && <div className={styles.emptyState}>No featured servers active.</div>}
+                            {featuredServers.map((server, index) => (
+                                <div
+                                    key={server.id}
+                                    className={styles.card}
+                                    draggable
+                                    onDragStart={(e) => {
+                                        e.dataTransfer.effectAllowed = 'move';
+                                        e.dataTransfer.setData('text/plain', index.toString());
+                                    }}
+                                    onDragOver={(e) => {
+                                        e.preventDefault();
+                                        e.dataTransfer.dropEffect = 'move';
+                                    }}
+                                    onDrop={(e) => {
+                                        e.preventDefault();
+                                        const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                                        const toIndex = index;
+                                        if (fromIndex === toIndex) return;
+
+                                        const newServers = [...featuredServers];
+                                        const [moved] = newServers.splice(fromIndex, 1);
+                                        newServers.splice(toIndex, 0, moved);
+                                        setFeaturedServers(newServers);
+                                    }}
+                                    style={{ cursor: 'grab' }}
+                                >
+                                    <div className={styles.cardIcon}>
+                                        {server.icon_url ? <img src={server.icon_url} alt="icon" /> : <Globe size={24} />}
+                                    </div>
+                                    <div className={styles.cardContent}>
+                                        <span className={styles.cardTitle}>
+                                            {index + 1}. {server.name}
+                                        </span>
+                                        <span className={styles.cardSub}>{server.address} • {server.description || 'No description'}</span>
+                                    </div>
+                                    <div className={styles.cardActions}>
+                                        <button className={styles.iconBtn} onClick={() => handleEditServer(server)}>
+                                            <Edit2 size={16} />
+                                        </button>
+                                        <button className={`${styles.iconBtn} ${styles.danger}`} onClick={() => handleDeleteServer(server.id)}>
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                )}
 
                 {activeSection === 'badges' && (
                     <>
                         <div className={styles.sectionHeader}>
+                            <PageHeader title="Badge Management" description="Create and grant badges to users." />
                             <button className={styles.actionBtn} onClick={() => setShowBadgeForm(!showBadgeForm)}>
                                 <Plus size={18} /> New Badge
                             </button>
@@ -377,10 +568,7 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
                 {activeSection === 'users' && (
                     <>
                         <div className={styles.sectionHeader}>
-                            <h2 className={styles.pageTitle}>User Directory</h2>
-                            <div className={styles.searchBox}>
-                                {/* Future Search Implementation */}
-                            </div>
+                            <PageHeader title="User Directory" description="Manage user roles and bans." />
                         </div>
 
                         <div className={styles.grid}>
@@ -421,12 +609,13 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
                 {activeSection === 'news' && (
                     <>
                         <div className={styles.sectionHeader}>
+                            <PageHeader title="News & Updates" description="Publish news articles and changelogs." />
                             <div style={{ display: 'flex', gap: 12 }}>
                                 <button className={styles.actionBtn} onClick={() => { setShowNewsForm(!showNewsForm); setShowChangelogForm(false); }}>
-                                    <Plus size={18} /> New News Post
+                                    <Plus size={18} /> New Post
                                 </button>
                                 <button className={styles.actionBtn} style={{ background: '#222', border: '1px solid #444', color: 'white' }} onClick={() => { setShowChangelogForm(!showChangelogForm); setShowNewsForm(false); }}>
-                                    <GitBranch size={18} /> New Changelog
+                                    <GitBranch size={18} /> Changelog
                                 </button>
                             </div>
                         </div>
@@ -530,7 +719,7 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
                 {activeSection === 'system' && (
                     <div className={styles.systemSection}>
                         <div className={styles.sectionHeader}>
-                            <h2 className={styles.pageTitle}>System Configuration</h2>
+                            <PageHeader title="System Configuration" description="Manage global settings." />
                         </div>
 
                         <div className={styles.card} style={{ maxWidth: '500px' }}>
@@ -562,13 +751,6 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
                                 </div>
                             </div>
                         </div>
-
-                        <div className={styles.card} style={{ marginTop: 24 }}>
-                            <div className={styles.cardContent}>
-                                <span className={styles.cardTitle}>Global Settings</span>
-                                <p style={{ color: '#666', fontSize: '13px' }}>More system configuration options will be available here in the future.</p>
-                            </div>
-                        </div>
                     </div>
                 )}
 
@@ -576,3 +758,4 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
         </div>
     );
 };
+

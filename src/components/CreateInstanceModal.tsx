@@ -10,7 +10,7 @@ interface CreateInstanceModalProps {
     onCreated: () => void;
 }
 
-type LoaderType = 'vanilla' | 'fabric' | 'forge';
+type LoaderType = 'vanilla' | 'fabric' | 'forge' | 'neoforge' | 'quilt';
 type VersionFilter = 'release' | 'snapshot' | 'all';
 
 export const CreateInstanceModal: React.FC<CreateInstanceModalProps> = ({ onClose, onCreated }) => {
@@ -23,8 +23,9 @@ export const CreateInstanceModal: React.FC<CreateInstanceModalProps> = ({ onClos
     const [fetchingVersions, setFetchingVersions] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [fabricLoaders, setFabricLoaders] = useState<{ id: string; stable: boolean }[]>([]);
+    const [extraLoaders, setExtraLoaders] = useState<string[]>([]);
     const [selectedLoaderVersion, setSelectedLoaderVersion] = useState('');
-    const [loadingFabric, setLoadingFabric] = useState(false);
+    const [loadingLoaders, setLoadingLoaders] = useState(false);
 
     useEffect(() => {
         const loadVersions = async () => {
@@ -47,28 +48,50 @@ export const CreateInstanceModal: React.FC<CreateInstanceModalProps> = ({ onClos
     }, []);
 
     useEffect(() => {
-        const fetchFabric = async () => {
-            if (loader === 'fabric' && version) {
-                setLoadingFabric(true);
-                setSelectedLoaderVersion(''); // Reset selection
-                try {
+        const fetchLoaders = async () => {
+            if (loader === 'vanilla' || !version) {
+                setExtraLoaders([]);
+                setFabricLoaders([]);
+                setSelectedLoaderVersion('');
+                return;
+            }
+
+            setLoadingLoaders(true);
+            setSelectedLoaderVersion('');
+            setError(null);
+
+            try {
+                if (loader === 'fabric') {
                     const loaders = await InstanceApi.getFabricLoaders(version);
                     setFabricLoaders(loaders);
                     if (loaders.length > 0) {
                         const stable = loaders.find(l => l.stable);
                         setSelectedLoaderVersion(stable ? stable.id : loaders[0].id);
-                    } else {
-                        console.warn(`[CreateInstance] No loaders found for ${version}`);
                     }
-                } catch (e) {
-                    console.error("[CreateInstance] Failed to fetch loaders:", e);
-                    setError("Failed to fetch Fabric loaders. Check console.");
-                } finally {
-                    setLoadingFabric(false);
+                } else if (loader === 'forge') {
+                    const loaders = await InstanceApi.getForgeLoaders(version);
+                    setExtraLoaders(loaders);
+                    if (loaders.length > 0) setSelectedLoaderVersion(loaders[0]);
+                } else if (loader === 'neoforge') {
+                    const loaders = await InstanceApi.getNeoForgeLoaders(version);
+                    setExtraLoaders(loaders);
+                    if (loaders.length > 0) setSelectedLoaderVersion(loaders[0]);
+                } else if (loader === 'quilt') {
+                    const loaders = await InstanceApi.getQuiltLoaders(version);
+                    setFabricLoaders(loaders);
+                    if (loaders.length > 0) {
+                        const stable = loaders.find(l => l.stable);
+                        setSelectedLoaderVersion(stable ? stable.id : loaders[0].id);
+                    }
                 }
+            } catch (e) {
+                console.error("[CreateInstance] Failed to fetch loaders:", e);
+                setError(`Failed to fetch ${loader} loaders.`);
+            } finally {
+                setLoadingLoaders(false);
             }
         };
-        fetchFabric();
+        fetchLoaders();
     }, [loader, version]);
 
     const handleCreate = async (e: React.FormEvent) => {
@@ -107,7 +130,9 @@ export const CreateInstanceModal: React.FC<CreateInstanceModalProps> = ({ onClos
     const loaderOptions = [
         { value: 'vanilla', label: 'Vanilla' },
         { value: 'fabric', label: 'Fabric' },
-        { value: 'forge', label: 'Forge (Coming Soon)' }
+        { value: 'forge', label: 'Forge' },
+        { value: 'neoforge', label: 'NeoForge' },
+        { value: 'quilt', label: 'Quilt' }
     ];
 
     const filterOptions = [
@@ -171,10 +196,10 @@ export const CreateInstanceModal: React.FC<CreateInstanceModalProps> = ({ onClos
                         )}
                     </div>
 
-                    {loader === 'fabric' && (
+                    {(loader === 'fabric' || loader === 'quilt') && (
                         <div className={styles.formGroup}>
-                            <label>Fabric Loader Version</label>
-                            {loadingFabric ? (
+                            <label>{loader.charAt(0).toUpperCase() + loader.slice(1)} Loader Version</label>
+                            {loadingLoaders ? (
                                 <div className={styles.loadingVersions}>Fetching loaders...</div>
                             ) : (
                                 <CustomSelect
@@ -185,6 +210,25 @@ export const CreateInstanceModal: React.FC<CreateInstanceModalProps> = ({ onClos
                                         label: `${l.id} ${l.stable ? '(Stable)' : ''}`
                                     }))}
                                     placeholder="Select loader version"
+                                />
+                            )}
+                        </div>
+                    )}
+
+                    {(loader === 'forge' || loader === 'neoforge') && (
+                        <div className={styles.formGroup}>
+                            <label>{loader.charAt(0).toUpperCase() + loader.slice(1)} Version</label>
+                            {loadingLoaders ? (
+                                <div className={styles.loadingVersions}>Fetching loaders...</div>
+                            ) : (
+                                <CustomSelect
+                                    value={selectedLoaderVersion}
+                                    onChange={setSelectedLoaderVersion}
+                                    options={extraLoaders.map(l => ({
+                                        value: l,
+                                        label: l
+                                    }))}
+                                    placeholder={`Select ${loader} version`}
                                 />
                             )}
                         </div>

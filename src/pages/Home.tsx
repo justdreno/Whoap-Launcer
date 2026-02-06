@@ -4,12 +4,13 @@ import styles from './Home.module.css';
 import { InstanceApi, Instance } from '../api/instances';
 import { LaunchApi } from '../api/launch';
 import { NetworkApi, ServerStatus } from '../api/network';
-import { ChevronDown, Rocket, Clock, Layers, Star, Globe, Search, Wifi, WifiOff, Users as UsersIcon } from 'lucide-react';
+import { ChevronDown, Rocket, Clock, Layers, Star, Globe, Search, Wifi, WifiOff, Users as UsersIcon, Copy, Check } from 'lucide-react';
 import heroBg from '../assets/background.png';
 import loginBg from '../assets/login_bg.png';
 import { useToast } from '../context/ToastContext';
 import { UserAvatar } from '../components/UserAvatar';
 import { CreateInstanceModal } from '../components/CreateInstanceModal';
+import { ServerService, FeaturedServer } from '../services/ServerService';
 
 interface HomeProps {
     user: {
@@ -17,9 +18,10 @@ interface HomeProps {
         uuid: string;
         token: string;
     };
+    setUser?: (user: any) => void;
 }
 
-export const Home: React.FC<HomeProps> = ({ user }) => {
+export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
     const [instances, setInstances] = useState<Instance[]>([]);
     const [selectedInstance, setSelectedInstance] = useState<Instance | null>(null);
     const [showInstanceDropdown, setShowInstanceDropdown] = useState(false);
@@ -36,6 +38,11 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
     const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null);
     const [statusLoading, setStatusLoading] = useState(false);
 
+    // Featured Servers State
+    const [featuredServers, setFeaturedServers] = useState<FeaturedServer[]>([]);
+    const [featuredStatuses, setFeaturedStatuses] = useState<Record<string, ServerStatus>>({});
+    const [copiedServerId, setCopiedServerId] = useState<string | null>(null);
+
     // Skin Selector State
     const [showSkinModal, setShowSkinModal] = useState(false);
     const [tempSkin, setTempSkin] = useState((user as any).preferredSkin || user.name);
@@ -49,6 +56,20 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
                 const mostRecent = [...list].sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0))[0];
                 setSelectedInstance(mostRecent);
             }
+
+            // Load featured servers
+            const servers = await ServerService.getFeaturedServers();
+            setFeaturedServers(servers);
+
+            // Fetch live status for each server
+            servers.forEach(async (server) => {
+                try {
+                    const status = await NetworkApi.getServerStatus(server.address);
+                    setFeaturedStatuses(prev => ({ ...prev, [server.id]: status }));
+                } catch (e) {
+                    // Ignore errors for individual servers
+                }
+            });
         };
         loadData();
 
@@ -110,6 +131,13 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
         }
     };
 
+    const handleCopyIp = (ip: string, id: string) => {
+        navigator.clipboard.writeText(ip);
+        setCopiedServerId(id);
+        showToast('Server IP copied!', 'success');
+        setTimeout(() => setCopiedServerId(null), 2000);
+    };
+
     const getGreeting = () => {
         const hour = new Date().getHours();
         if (hour < 12) return 'Good Morning,';
@@ -160,11 +188,6 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
 
     const mostRecentInstance = recentInstances.length > 0 ? recentInstances[0] : null;
     const activeInstance = selectedInstance || mostRecentInstance;
-
-    // Skin preloading removed as UserAvatar handles it
-
-
-    // Auto-select on first load
 
 
     return (
@@ -344,12 +367,26 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
                             <button onClick={() => setShowSkinModal(false)} className={styles.cancelBtn}>Cancel</button>
                             <button onClick={async () => {
                                 if (tempSkin && tempSkin !== ((user as any).preferredSkin || user.name)) {
+                                    // 1. Update Cloud (if applicable)
                                     if ((user as any).type === 'whoap') {
-                                        const { ProfileService } = await import('../services/ProfileService');
-                                        await ProfileService.updateProfile(user.uuid, { preferred_skin: tempSkin });
+                                        try {
+                                            const { ProfileService } = await import('../services/ProfileService');
+                                            await ProfileService.updateProfile(user.uuid, { preferred_skin: tempSkin });
+                                        } catch (e) {
+                                            console.error("Failed to update skin in DB", e);
+                                        }
                                     }
+
+                                    // 2. Update Local Storage (AccountManager)
+                                    const { AccountManager } = await import('../utils/AccountManager');
+                                    AccountManager.updateAccount(user.uuid, { preferredSkin: tempSkin });
+
+                                    // 3. Update UI instantly
+                                    if (setUser) {
+                                        setUser((prev: any) => ({ ...prev, preferredSkin: tempSkin }));
+                                    }
+
                                     showToast(`Skin updated to ${tempSkin}!`, 'success');
-                                    window.location.reload();
                                 }
                                 setShowSkinModal(false);
                             }} className={styles.confirmBtn}>Apply</button>
@@ -358,7 +395,7 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
                 </div>
             )}
 
-            {/* Widgets Section */}
+            {/* Widgets Grid */}
             <div className={styles.widgetsGrid}>
                 {/* Stats Widget */}
                 <div className={styles.statsRow}>
@@ -386,6 +423,67 @@ export const Home: React.FC<HomeProps> = ({ user }) => {
                 </div>
 
             </div>
+
+            {/* Featured Servers Section */}
+            {featuredServers.length > 0 && (
+                <div className={styles.featuredSection}>
+                    <div className={styles.sectionTitle}><Globe size={18} /> Featured Servers</div>
+                    <div className={styles.serverGrid}>
+                        {featuredServers.map((server, index) => {
+                            const statusIcon = featuredStatuses[server.id]?.icon;
+                            let iconSrc = server.icon_url;
+
+                            if (!iconSrc && statusIcon) {
+                                iconSrc = statusIcon.startsWith('data:image') ? statusIcon : `data:image/png;base64,${statusIcon}`;
+                            }
+
+                            return (
+                                <div key={server.id} className={styles.serverCard}>
+                                    {index < 3 && (
+                                        <div className={`${styles.rankBadge} ${index === 0 ? styles.rank1 : index === 1 ? styles.rank2 : styles.rank3}`}>
+                                            {index + 1}
+                                        </div>
+                                    )}
+                                    <div className={styles.serverIcon}>
+                                        {iconSrc ? <img src={iconSrc} alt={server.name} /> : <Globe size={24} />}
+                                    </div>
+                                    <div className={styles.serverInfo}>
+                                        <div className={styles.serverName}>
+                                            {server.name}
+                                            {featuredStatuses[server.id] && (
+                                                <span
+                                                    className={`${styles.statusDot} ${featuredStatuses[server.id].online ? styles.online : styles.offline}`}
+                                                    title={featuredStatuses[server.id].online ? 'Online' : 'Offline'}
+                                                />
+                                            )}
+                                        </div>
+                                        <div className={styles.serverDesc}>
+                                            {featuredStatuses[server.id]?.motd ? (
+                                                <span dangerouslySetInnerHTML={{ __html: featuredStatuses[server.id].motd!.replace(/\n/g, '<br/>') }}></span>
+                                            ) : (
+                                                server.description
+                                            )}
+                                        </div>
+                                        {featuredStatuses[server.id]?.players && (
+                                            <div className={styles.serverPlayers}>
+                                                <UsersIcon size={12} />
+                                                <span>{featuredStatuses[server.id].players!.online}/{featuredStatuses[server.id].players!.max}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button
+                                        className={styles.copyIpBtn}
+                                        onClick={() => handleCopyIp(server.address, server.id)}
+                                        title="Copy IP Address"
+                                    >
+                                        {copiedServerId === server.id ? <Check size={16} color="#4ade80" /> : <Copy size={16} />}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Server Status Widget - New Hero Style */}
             <div className={styles.serverWidgetHero}>

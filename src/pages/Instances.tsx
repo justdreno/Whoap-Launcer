@@ -100,7 +100,7 @@ export const Instances: React.FC<InstancesProps> = ({ onSelectInstance }) => {
                             setProcessing(null);
                         }
                     }}>
-                        Import .zip
+                        Import Zip / Pack
                     </button>
                     <button className={styles.createBtn} onClick={() => setShowCreateModal(true)}>
                         + New Profile

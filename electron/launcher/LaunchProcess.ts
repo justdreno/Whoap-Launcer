@@ -8,7 +8,6 @@ import { VersionManager } from './VersionManager';
 import { ConfigManager } from '../managers/ConfigManager';
 import { LogWindowManager } from '../managers/LogWindowManager';
 import { CloudManager } from '../managers/CloudManager';
-import { SkinServerManager } from '../managers/SkinServerManager';
 import { DiscordManager } from '../managers/DiscordManager';
 
 export class LaunchProcess {
@@ -23,13 +22,6 @@ export class LaunchProcess {
 
     private registerListeners() {
         ipcMain.handle('game:launch', async (event, instanceId: string, _unusedPath: string, versionId: string, authData: any) => {
-            // Register current user with SkinServer so it can serve the correct skin
-            if (authData.name && authData.uuid) {
-                // Pass skin model if available
-                const skinModel = authData.skinModel || 'default';
-                SkinServerManager.setCurrentUser(authData.uuid, authData.name, skinModel);
-            }
-
             // Trigger Cloud Sync
             try {
                 // Construct synthetic instance object for sync
@@ -254,23 +246,6 @@ export class LaunchProcess {
                     }
                 }
 
-                // Authlib Injector Logic - Updated for better skin support
-                const AUTHLIB_URL = 'https://github.com/yushijinhun/authlib-injector/releases/download/v1.2.7/authlib-injector-1.2.7.jar';
-                // Get skin server URL dynamically from the SkinServerManager
-                const skinServerPort = SkinServerManager.getInstance()?.getPort() || 25500;
-                const AUTH_SERVER_URL = `http://127.0.0.1:${skinServerPort}`;
-                const authlibPath = path.join(librariesDir, 'authlib-injector.jar');
-
-                console.log(`[Launch] Using skin server at ${AUTH_SERVER_URL}`);
-
-                // Only download if missing
-                if (!fs.existsSync(authlibPath)) {
-                    downloads.push({
-                        url: AUTHLIB_URL,
-                        destination: authlibPath,
-                        priority: 20 // High priority
-                    });
-                }
 
                 // Only download client if we have a URL and (it's missing OR we want to verify)
                 // For imported versions, if it exists, assume it's good (TLauncher logic)
@@ -531,37 +506,6 @@ export class LaunchProcess {
                 const minRam = ConfigManager.getMinRam();
                 const maxRam = ConfigManager.getMaxRam();
 
-                // 6. Build Args
-                // Authlib-injector configuration for multiplayer support
-                // These system properties enable skin visibility for ALL players on servers
-                const authlibConfig = [
-                    // Core authlib-injector agent - CRITICAL: No space after =
-                    `-javaagent:${authlibPath}=${AUTH_SERVER_URL}`,
-                    // Enable legacy skin API for older server compatibility
-                    '-Dauthlibinjector.legacySkinPolyfill=enabled',
-                    // Client-side mode for skin loading
-                    '-Dauthlibinjector.side=client',
-                    // Disable server name display in title
-                    '-Dauthlibinjector.noShowServerName=true',
-                    // CRITICAL FIX: Disable signature verification for unsigned textures
-                    // This allows our unsigned texture properties to work on third-party servers
-                    '-Dauthlibinjector.disableSigcheck=true',
-                    // Ignore timestamp validation for better compatibility
-                    '-Dauthlibinjector.ignoreTimestamp=true',
-                    // Enable profile key signing for multiplayer (optional, disabled for compatibility)
-                    // '-Dauthlibinjector.profileKey.enabled=true',
-                    // Disable authlib-injector update checks
-                    '-Dauthlibinjector.noUpdate=true',
-                    // IMPORTANT: Allow Mojang namespace for mixed server support
-                    // This enables loading skins for premium players on the same server
-                    // while still using our auth for our users
-                    '-Dauthlibinjector.mojangNamespace=enabled',
-                    // Prefetch skins for better loading performance
-                    '-Dauthlibinjector.skinPreload=true',
-                    // Enable debug logging for troubleshooting (uncomment if needed)
-                    // '-Dauthlibinjector.debug=true',
-                ];
-
                 const jvmArgs = [
                     `-Xms${minRam}M`,
                     `-Xmx${maxRam}M`,
@@ -569,13 +513,6 @@ export class LaunchProcess {
                     '-Dminecraft.launcher.brand=whoap',
                     '-Dminecraft.launcher.version=2.0.0',
                     '-Dminecraft.client.jar=' + clientJarPath,
-                    // CRITICAL: Allow insecure texture sources (needed for Supabase URLs)
-                    '-Dminecraft.api.auth.host=http://127.0.0.1:' + skinServerPort,
-                    '-Dminecraft.api.account.host=http://127.0.0.1:' + skinServerPort,
-                    '-Dminecraft.api.session.host=http://127.0.0.1:' + skinServerPort,
-                    '-Dminecraft.api.services.host=http://127.0.0.1:' + skinServerPort,
-                    // Authlib-injector config - MUST come before -cp
-                    ...authlibConfig,
                     '-cp', classpath,
                     versionData.mainClass,
                     '--username', authData.name,

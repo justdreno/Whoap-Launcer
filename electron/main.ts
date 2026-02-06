@@ -1,9 +1,35 @@
 import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron';
 import path from 'path';
+import fs from 'fs';
+
+// --- 0. Load .env manually for Main Process ---
+function loadEnv() {
+    // During development, __dirname is dist-electron. .env is in project root.
+    const envPath = app.isPackaged
+        ? path.join(process.resourcesPath, '.env')
+        : path.join(__dirname, '../.env');
+
+    if (fs.existsSync(envPath)) {
+        try {
+            const content = fs.readFileSync(envPath, 'utf8');
+            content.split(/\r?\n/).forEach(line => {
+                const [key, ...valueParts] = line.split('=');
+                if (key && !key.startsWith('#') && valueParts.length > 0) {
+                    const value = valueParts.join('=').trim().replace(/^["']|["']$/g, '');
+                    process.env[key.trim()] = value;
+                }
+            });
+            console.log('[Main] Loaded .env file');
+        } catch (e) {
+            console.error('[Main] Failed to parse .env file:', e);
+        }
+    }
+}
+
+loadEnv();
 
 // Managers Import
 import { AuthManager } from './managers/AuthManager';
-import { SkinServerManager } from './managers/SkinServerManager';
 import { InstanceManager } from './managers/InstanceManager';
 import { VersionManager } from './launcher/VersionManager';
 import { LaunchProcess } from './launcher/LaunchProcess';
@@ -16,6 +42,7 @@ import { NetworkManager } from './managers/NetworkManager';
 import { AutoUpdateManager } from './managers/AutoUpdateManager';
 import { DiscordManager } from './managers/DiscordManager';
 import { ScreenshotManager } from './managers/ScreenshotManager';
+import { ModPlatformManager } from './managers/ModPlatformManager';
 
 // Paths Configuration
 process.env.DIST = path.join(__dirname, '../dist-react');
@@ -26,7 +53,6 @@ const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
 let win: BrowserWindow | null = null;
 let splash: BrowserWindow | null = null;
 let tray: Tray | null = null;
-let skinServer: SkinServerManager | null = null;
 
 // --- 1. Create Splash Screen ---
 function createSplashWindow() {
@@ -142,7 +168,6 @@ if (!app.requestSingleInstanceLock()) {
         // Initialize Core Managers
         new ConfigManager();
         new AuthManager();
-        skinServer = new SkinServerManager(); // Start Skin Server
         InstanceManager.getInstance();
         new VersionManager();
         new LaunchProcess();
@@ -153,6 +178,7 @@ if (!app.requestSingleInstanceLock()) {
         new ScreenshotManager();
         CloudManager.getInstance();
         DiscordManager.getInstance();
+        ModPlatformManager.getInstance();
 
         // Register IPC Handlers
         registerIpcHandlers();
@@ -210,22 +236,4 @@ function registerIpcHandlers() {
         }
     });
 
-    // Skin Server Info
-    ipcMain.handle('skin:get-server-info', async () => {
-        return {
-            url: skinServer?.getServerUrl() || `http://127.0.0.1:25500`,
-            port: skinServer?.getPort() || 25500,
-            multiplayerEnabled: true
-        };
-    });
-
-    // Register Player (Whoap Multiplayer Visibility)
-    ipcMain.handle('skin:register-player', async (_, data) => {
-        try {
-            SkinServerManager.registerPlayer(data.uuid, data.name, data.realUuid);
-            return { success: true };
-        } catch (e) {
-            return { success: false, error: String(e) };
-        }
-    });
 }

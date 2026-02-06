@@ -191,6 +191,18 @@
     transform: translateY(0);
 }
 
+.lockedBtn {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #666 !important;
+    box-shadow: none !important;
+    cursor: not-allowed !important;
+}
+
+.lockedBtn:hover {
+    transform: none !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+}
+
 .searchInput:focus {
     outline: none;
     border-color: #ffaa00;
@@ -222,88 +234,101 @@
     padding-left: 4px;
 }
 
-.modItem {
-    background: #18181b;
-    border: 1px solid #27272a;
-    border-radius: 16px;
-    padding: 16px;
+/* New Mod Card Design */
+.modCard {
     display: flex;
     align-items: center;
-    gap: 20px;
-    transition: all 0.2s;
+    gap: 16px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.02) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 16px 20px;
+    transition: all 0.2s ease;
 }
 
-.modItem:hover {
+.modCard:hover {
     border-color: rgba(255, 170, 0, 0.3);
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
-.installBtn {
-    background: #ffaa00;
-    color: #000;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-weight: 600;
-    /* Ensure bold */
-    cursor: pointer;
+.modCard.disabled {
+    opacity: 0.6;
+}
+
+.modCard.disabled:hover {
+    opacity: 0.85;
+}
+
+.modIconWrapper {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(255, 170, 0, 0.15), rgba(255, 136, 0, 0.08));
+    border: 1px solid rgba(255, 170, 0, 0.2);
     display: flex;
-    gap: 8px;
     align-items: center;
     justify-content: center;
-    min-width: 100px;
-    /* Prevent layout shift */
-    transition: all 0.2s;
-    text-decoration: none;
-    /* Just in case */
-    font-size: 0.9rem;
+    color: #ffaa00;
+    flex-shrink: 0;
 }
 
-.modInfo {
+.modDetails {
     flex: 1;
+    min-width: 0;
 }
 
 .modName {
     font-weight: 700;
-    font-size: 1.1rem;
-    margin-bottom: 4px;
+    font-size: 15px;
     color: #fff;
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .modMeta {
-    color: #888;
-    font-size: 0.85rem;
     display: flex;
     align-items: center;
     gap: 12px;
+    font-size: 12px;
+    color: #888;
 }
 
-.statusDot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #444;
-    display: inline-block;
-    margin-right: 6px;
+.statusPill {
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: rgba(255, 255, 255, 0.06);
+    color: #888;
 }
 
-.statusDot.enabled {
-    background: #4CAF50;
-    box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
+.statusPill.enabled {
+    background: rgba(76, 175, 80, 0.15);
+    color: #4CAF50;
 }
 
-.statusDot.disabled {
-    background: #ff4444;
+.modSize {
+    color: #666;
+}
+
+.modActions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
 }
 
 .actionBtn {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    border: none;
-    background: rgba(255, 255, 255, 0.05);
-    color: #aaa;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    color: #888;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -312,13 +337,25 @@
 }
 
 .actionBtn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     color: #fff;
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.actionBtn.enabledAction {
+    background: rgba(76, 175, 80, 0.12);
+    color: #4CAF50;
+    border-color: rgba(76, 175, 80, 0.2);
+}
+
+.actionBtn.enabledAction:hover {
+    background: rgba(76, 175, 80, 0.2);
 }
 
 .dangerBtn:hover {
-    background: rgba(255, 68, 68, 0.1);
-    color: #ff4444;
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.2);
 }
 
 .toggleBtn {

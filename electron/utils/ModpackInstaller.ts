@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import axios from 'axios';
 import AdmZip from 'adm-zip';
-import { ModrinthApi } from '../api/ModrinthApi';
+import { CurseForgeApi } from '../api/CurseForgeApi';
 import { ConfigManager } from '../managers/ConfigManager';
 import { randomUUID } from 'crypto';
 
@@ -47,45 +47,144 @@ export class ModpackInstaller {
             const packPath = path.join(instanceDir, 'modpack.mrpack');
             await this.downloadFile(primary.url, packPath);
 
-            // Extract .mrpack
-            onProgress("Extracting configuration...", 20, 100);
-            const zip = new AdmZip(packPath);
+            const result = await this.installFromLocalZip(packPath, onProgress, projectName, iconUrl);
+
+            // Clean up the downloaded pack
+            if (fs.existsSync(packPath)) fs.unlinkSync(packPath);
+
+            return result;
+
+        } catch (error) {
+            console.error(`[ModpackInstaller] Error:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Install from a local ZIP / .mrpack file
+     */
+    static async installFromLocalZip(
+        zipPath: string,
+        onProgress: (status: string, progress: number, total: number) => void,
+        providedName?: string,
+        providedIcon?: string
+    ) {
+        console.log(`[ModpackInstaller] Installing from local zip: ${zipPath}`);
+
+        try {
+            onProgress("Analyzing zip content...", 5, 100);
+            const zip = new AdmZip(zipPath);
+            const entries = zip.getEntries();
+
+            const isModrinth = entries.some(e => e.entryName === 'modrinth.index.json');
+            const isCurseForge = entries.some(e => e.entryName === 'manifest.json');
+
+            if (!isModrinth && !isCurseForge) {
+                throw new Error("Invalid modpack: No Modrinth or CurseForge manifest found inside zip.");
+            }
+
+            // Setup Instance Paths
+            let projectName = providedName || path.basename(zipPath, path.extname(zipPath));
+            const safeName = projectName.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
+            let instanceDir = path.join(this.instancesDir, safeName);
+            let counter = 1;
+            while (fs.existsSync(instanceDir)) {
+                instanceDir = path.join(this.instancesDir, `${safeName}_${counter}`);
+                counter++;
+            }
+            fs.mkdirSync(instanceDir, { recursive: true });
+
+            onProgress("Extracting overrides...", 10, 100);
             zip.extractAllTo(instanceDir, true);
 
-            // Read index
-            const indexPath = path.join(instanceDir, 'modrinth.index.json');
-            if (!fs.existsSync(indexPath)) throw new Error("Invalid modpack: modrinth.index.json missing");
-            const indexData = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+            let gameVersion = '';
+            let loader = 'vanilla';
+            let loaderVersion = '';
+            let filesToDownload: { url: string, path: string, fileSize?: number }[] = [];
 
-            // Init Directories
-            const modsDir = path.join(instanceDir, 'mods');
-            fs.mkdirSync(modsDir, { recursive: true });
+            if (isModrinth) {
+                onProgress("Parsing Modrinth manifest...", 15, 100);
+                const indexPath = path.join(instanceDir, 'modrinth.index.json');
+                const indexData = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
 
-            // Handle Overrides
-            const overridesDir = path.join(instanceDir, 'overrides');
-            if (fs.existsSync(overridesDir)) this.copyRecursiveSync(overridesDir, instanceDir);
+                projectName = providedName || indexData.name || projectName;
+                gameVersion = indexData.dependencies.minecraft;
 
-            const clientOverridesDir = path.join(instanceDir, 'client-overrides');
-            if (fs.existsSync(clientOverridesDir)) this.copyRecursiveSync(clientOverridesDir, instanceDir);
+                const deps = indexData.dependencies;
+                loader = (deps['fabric-loader'] || deps.fabric_loader) ? 'fabric' :
+                    (deps.forge ? 'forge' :
+                        (deps.neoforge ? 'neoforge' :
+                            ((deps['quilt-loader'] || deps.quilt_loader) ? 'quilt' : 'vanilla')));
+                loaderVersion = deps[`${loader}-loader`] || deps[`${loader}_loader`] || deps[loader];
 
-            // Download Mods
-            const downloads = indexData.files;
-            const totalMods = downloads.length;
+                filesToDownload = indexData.files.map((f: any) => ({
+                    url: f.downloads[0],
+                    path: f.path,
+                    fileSize: f.fileSize
+                }));
 
-            // Calculate total size if available (often implied in indexData, check spec)
-            // Modrinth index 'files' entries: { path, hashes, env, downloads: [url], fileSize: int }
-            // Let's assume fileSize is there (it is in spec).
-            const totalBytes = downloads.reduce((acc: number, f: any) => acc + (f.fileSize || 0), 0);
+                // Handle Overrides
+                const overridesDir = path.join(instanceDir, 'overrides');
+                if (fs.existsSync(overridesDir)) this.copyRecursiveSync(overridesDir, instanceDir);
+                const clientOverridesDir = path.join(instanceDir, 'client-overrides');
+                if (fs.existsSync(clientOverridesDir)) this.copyRecursiveSync(clientOverridesDir, instanceDir);
+
+            } else if (isCurseForge) {
+                onProgress("Parsing CurseForge manifest...", 15, 100);
+                const manifestPath = path.join(instanceDir, 'manifest.json');
+                const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+
+                projectName = providedName || manifest.name || projectName;
+                gameVersion = manifest.minecraft.version;
+
+                const loaders = manifest.minecraft.modLoaders;
+                if (loaders && loaders.length > 0) {
+                    const primaryLoader = loaders[0].id; // e.g. "forge-47.2.0" or "fabric-0.14.22"
+                    if (primaryLoader.includes('fabric')) {
+                        loader = 'fabric';
+                        loaderVersion = primaryLoader.replace('fabric-', '');
+                    } else if (primaryLoader.includes('forge')) {
+                        loader = 'forge';
+                        loaderVersion = primaryLoader.replace('forge-', '');
+                    } else if (primaryLoader.includes('neoforge')) {
+                        loader = 'neoforge';
+                        loaderVersion = primaryLoader.replace('neoforge-', '');
+                    } else if (primaryLoader.includes('quilt')) {
+                        loader = 'quilt';
+                        loaderVersion = primaryLoader.replace('quilt-', '');
+                    }
+                }
+
+                onProgress("Resolving CurseForge mod URLs...", 20, 100);
+                const cfFiles = manifest.files; // { projectID, fileID, required }
+
+                // Optimized CF resolution
+                const fileIds = cfFiles.map((f: any) => f.fileID);
+                // The CF API supports batching file lookups.
+                const resolvedFiles = await CurseForgeApi.getFilesInfo(fileIds);
+
+                filesToDownload = resolvedFiles.map(file => ({
+                    url: CurseForgeApi.getDownloadUrl(file),
+                    path: path.join('mods', file.fileName),
+                    fileSize: file.fileLength
+                }));
+
+                // Handle Overrides
+                const overridesDir = path.join(instanceDir, manifest.overrides || 'overrides');
+                if (fs.existsSync(overridesDir)) {
+                    this.copyRecursiveSync(overridesDir, instanceDir);
+                }
+            }
+
+            // Download Logic
+            const totalFiles = filesToDownload.length;
+            const totalBytes = filesToDownload.reduce((acc, f) => acc + (f.fileSize || 0), 0);
             const totalMB = (totalBytes / 1024 / 1024).toFixed(1);
 
-            console.log(`[ModpackInstaller] Downloading ${totalMods} mods (${totalMB} MB)...`);
-
-            // Process downloads with concurrency limit (e.g., 5) to avoid flooding and better tracking
             const CONCURRENCY = 5;
             let completed = 0;
             let bytesDownloaded = 0;
-
-            const downloadQueue = [...downloads];
+            const downloadQueue = [...filesToDownload];
             const activeWorkers = [];
 
             const downloadWorker = async () => {
@@ -93,62 +192,39 @@ export class ModpackInstaller {
                     const file = downloadQueue.shift();
                     if (!file) break;
 
-                    if (file.env && file.env.client === 'unsupported') continue;
-
                     const destPath = path.join(instanceDir, file.path);
                     const destFolder = path.dirname(destPath);
                     if (!fs.existsSync(destFolder)) fs.mkdirSync(destFolder, { recursive: true });
 
-                    const url = file.downloads[0];
                     try {
-                        await this.downloadFile(url, destPath);
+                        await this.downloadFile(file.url, destPath);
                         completed++;
                         bytesDownloaded += (file.fileSize || 0);
 
-                        // Report Progress
-                        // Scale: 30% to 90% is downloading
-                        const overallPercent = 30 + Math.floor((completed / totalMods) * 60);
-                        onProgress(`Downloading mods: ${completed}/${totalMods} (${(bytesDownloaded / 1024 / 1024).toFixed(1)}/${totalMB} MB)`, overallPercent, 100);
+                        const overallPercent = 30 + Math.floor((completed / totalFiles) * 60);
+
+                        let infoStr = `Downloading files: ${completed}/${totalFiles}`;
+                        if (totalBytes > 0) {
+                            infoStr += ` (${(bytesDownloaded / 1024 / 1024).toFixed(1)}/${totalMB} MB)`;
+                        }
+
+                        onProgress(infoStr, overallPercent, 100);
                     } catch (err) {
                         console.error(`Failed to download ${file.path}`, err);
-                        // Optional: continue or fail? A modpack might be broken without a file.
-                        // For now we continue but log it.
                     }
                 }
             };
 
-            // Start workers
             for (let i = 0; i < CONCURRENCY; i++) activeWorkers.push(downloadWorker());
             await Promise.all(activeWorkers);
 
-            // Install Loader (Fabric/Quilt/Forge)
-            console.log('[ModpackInstaller] Dependencies:', JSON.stringify(indexData.dependencies, null, 2));
-
-            const deps = indexData.dependencies;
-            const loader = (deps['fabric-loader'] || deps.fabric_loader) ? 'fabric' :
-                (deps.forge ? 'forge' :
-                    (deps.neoforge ? 'neoforge' :
-                        ((deps['quilt-loader'] || deps.quilt_loader) ? 'quilt' : 'vanilla')));
-
-            console.log(`[ModpackInstaller] Detected loader: ${loader}`);
-
-            const gameVersion = deps.minecraft;
-            let loaderVersion = deps[`${loader}-loader`] || deps[`${loader}_loader`] || deps[loader];
-
-            // If loader version is just recognized as "required" but version not specified (unlikely for modrinth index), handle it.
-            // Modrinth index usually specifies exact version.
-
-            let launchVersionId = gameVersion; // Default to vanilla
-
+            // Install Loader
+            let launchVersionId = gameVersion;
             if (loader === 'fabric' || loader === 'quilt') {
                 try {
                     onProgress(`Installing ${loader} loader...`, 90, 100);
-                    // Fetch profile JSON
-                    // Fabric: https://meta.fabricmc.net/v2/versions/loader/<game_version>/<loader_version>/profile/json
-                    // Quilt: https://meta.quiltmc.org/v3/versions/loader/<game_version>/<loader_version>/profile/json
                     const metaHost = loader === 'fabric' ? 'https://meta.fabricmc.net/v2' : 'https://meta.quiltmc.org/v3';
 
-                    // If loaderVersion is missing, fetch stable? Modpacks usually define it.
                     if (!loaderVersion) {
                         const vRes = await axios.get(`${metaHost}/versions/loader/${gameVersion}`);
                         const best = vRes.data.find((l: any) => l.loader.stable) || vRes.data[0];
@@ -157,13 +233,10 @@ export class ModpackInstaller {
 
                     if (loaderVersion) {
                         const profileUrl = `${metaHost}/versions/loader/${gameVersion}/${loaderVersion}/profile/json`;
-                        console.log(`[ModpackInstaller] Fetching loader profile from ${profileUrl}`);
                         const profileRes = await axios.get(profileUrl);
                         const profileJson = profileRes.data;
 
                         const versionId = profileJson.id;
-                        // We need to reliably find games dir.
-                        // Use ConfigManager to get the actual configured path
                         const gamePath = ConfigManager.getGamePath();
                         const versionDir = path.join(gamePath, 'versions', versionId);
 
@@ -171,42 +244,43 @@ export class ModpackInstaller {
                             fs.mkdirSync(versionDir, { recursive: true });
                             fs.writeFileSync(path.join(versionDir, `${versionId}.json`), JSON.stringify(profileJson, null, 4));
                         }
-
                         launchVersionId = versionId;
                     }
-
                 } catch (e) {
                     console.error("Failed to install loader", e);
                 }
-            } else if (loader === 'forge' || loader === 'neoforge') {
-                // Forge/NeoForge installation is more complex (installers).
-                // For now, we set the intention.
-                // TODO: Implement Forge handling.
-                console.warn("Forge/NeoForge auto-setup not fully implemented in ModpackInstaller yet.");
             }
 
             const instanceConfig = {
-                id: path.basename(instanceDir), // Fix: Use folder name as ID
+                id: path.basename(instanceDir),
                 name: projectName,
                 version: gameVersion,
                 loader: loader,
                 loaderVersion: loaderVersion,
                 launchVersionId: launchVersionId,
-                icon: iconUrl,
+                icon: providedIcon,
                 created: Date.now(),
                 lastPlayed: 0,
                 memory: 4096
             };
 
             fs.writeFileSync(path.join(instanceDir, 'instance.json'), JSON.stringify(instanceConfig, null, 4));
-            fs.unlinkSync(packPath);
 
-            console.log(`[ModpackInstaller] Installation complete for ${projectName}`);
+            // Clean up manifests to keep it clean
+            const toCleanup = ['modrinth.index.json', 'manifest.json', 'overrides', 'client-overrides', 'modpack.mrpack'];
+            toCleanup.forEach(f => {
+                const p = path.join(instanceDir, f);
+                if (fs.existsSync(p)) {
+                    if (fs.statSync(p).isDirectory()) fs.rmSync(p, { recursive: true, force: true });
+                    else fs.unlinkSync(p);
+                }
+            });
+
             onProgress("Complete!", 100, 100);
             return { success: true, instanceId: instanceConfig.id };
 
-        } catch (error) {
-            console.error(`[ModpackInstaller] Error:`, error);
+        } catch (error: any) {
+            console.error(`[ModpackInstaller] Local Zip Install Error:`, error);
             throw error;
         }
     }

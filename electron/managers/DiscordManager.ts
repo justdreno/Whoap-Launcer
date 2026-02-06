@@ -15,7 +15,7 @@ export interface PresenceData {
 export class DiscordManager {
     private static instance: DiscordManager;
     private rpc: Client | null = null;
-    private clientId: string = '1329323145455960144'; // Placeholder or User's App ID
+    private clientId: string = '1465139441457827972'; // Placeholder or User's App ID
     private isReady: boolean = false;
 
     constructor() {

@@ -95,6 +95,11 @@ export class AuthManager {
             return { success: true };
         });
 
+        ipcMain.handle('auth:set-session', async (_, session: StoredSession) => {
+            SessionStore.save(session);
+            return { success: true };
+        });
+
         // Update existing session (e.g. after token refresh)
         ipcMain.handle('auth:update-session', async (_, updateData: Partial<StoredSession>) => {
             const current = SessionStore.get();

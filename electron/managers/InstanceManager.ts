@@ -3,6 +3,8 @@ import path from 'path';
 import fs from 'fs/promises';
 import { existsSync, mkdirSync, readdirSync, readFileSync } from 'fs';
 import { ConfigManager } from './ConfigManager';
+import { VersionUtils } from '../utils/VersionUtils';
+import { VersionManager } from '../launcher/VersionManager';
 import AdmZip from 'adm-zip';
 import { dialog } from 'electron';
 
@@ -58,6 +60,18 @@ export class InstanceManager {
 
         ipcMain.handle('meta:get-fabric-loaders', async (_, version: string) => {
             return await this.getFabricLoaders(version);
+        });
+
+        ipcMain.handle('meta:get-forge-loaders', async (_, version: string) => {
+            return await VersionManager.getForgeLoaders(version);
+        });
+
+        ipcMain.handle('meta:get-neoforge-loaders', async (_, version: string) => {
+            return await VersionManager.getNeoForgeLoaders(version);
+        });
+
+        ipcMain.handle('meta:get-quilt-loaders', async (_, version: string) => {
+            return await VersionManager.getQuiltLoaders(version);
         });
 
         ipcMain.handle('instance:list', async () => {
@@ -272,33 +286,36 @@ export class InstanceManager {
             throw new Error("Instance with this name/folder already exists.");
         }
 
-        // Install Fabric Loader if requested
+        // Install Mod Loader if requested
         let launchVersionId = version; // Default to vanilla version
 
-        if (loader === 'fabric') {
+        if (loader === 'fabric' || loader === 'quilt') {
             try {
                 // If specific loader version not provided, fetch stable defaults
                 let targetLoaderVersion = loaderVersion;
 
                 if (!targetLoaderVersion) {
                     // 1. Fetch stable loader version for this game version
-                    const metaRes = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${version}`);
+                    const metaUrl = loader === 'fabric'
+                        ? `https://meta.fabricmc.net/v2/versions/loader/${version}`
+                        : `https://meta.quiltmc.org/v3/versions/loader/${version}`;
+
+                    const metaRes = await fetch(metaUrl);
                     const metaData = await metaRes.json();
 
                     if (metaData && metaData.length > 0) {
-                        const bestLoader = metaData.find((l: any) => l.loader.stable) || metaData[0];
-                        targetLoaderVersion = bestLoader.loader.version;
+                        const bestLoader = metaData.find((l: any) => l.loader?.stable || l.stable) || metaData[0];
+                        targetLoaderVersion = bestLoader.loader?.version || bestLoader.version;
                     }
                 }
 
                 if (targetLoaderVersion) {
                     // 2. Fetch the actual profile JSON
-                    // Format: https://meta.fabricmc.net/v2/versions/loader/<game_version>/<loader_version>/profile/json
-                    const profileRes = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${version}/${targetLoaderVersion}/profile/json`);
+                    // Format: https://meta.fabricmc.net/v2/versions/loader/<game_version>/<loader_version>/profile/json (Same for Quilt mostly)
+                    const baseUrl = loader === 'fabric' ? 'https://meta.fabricmc.net' : 'https://meta.quiltmc.org';
+                    const profileRes = await fetch(`${baseUrl}/v2/versions/loader/${version}/${targetLoaderVersion}/profile/json`);
                     const profileJson = await profileRes.json();
 
-                    // 3. Save to versions folder (Standard Minecraft structure)
-                    // The ID usually looks like "fabric-loader-0.15.7-1.20.1"
                     const versionId = profileJson.id;
                     const versionsDir = path.join(ConfigManager.getGamePath(), 'versions');
                     const versionDir = path.join(versionsDir, versionId);
@@ -311,8 +328,23 @@ export class InstanceManager {
                     launchVersionId = versionId;
                 }
             } catch (e) {
-                console.warn("Failed to install Fabric loader", e);
-                // Fallback to vanilla creation but warn
+                console.warn(`Failed to install ${loader} loader`, e);
+            }
+        } else if ((loader === 'forge' || loader === 'neoforge') && loaderVersion) {
+            // For Forge/NeoForge, we use the standard naming convention
+            // e.g. "1.20.1-forge-47.2.0" or "1.21.1-neoforge-21.1.0"
+            launchVersionId = loader === 'forge'
+                ? `${version}-forge-${loaderVersion}`
+                : `${loaderVersion}`; // NeoForge versions are often just the ID now
+
+            // Check if this version already exists in .minecraft/versions
+            const versionsDir = path.join(ConfigManager.getGamePath(), 'versions');
+            const versionDir = path.join(versionsDir, launchVersionId);
+
+            if (!existsSync(versionDir)) {
+                console.log(`[CreateInstance] ${loader} version ${launchVersionId} not found in versions folder.`);
+                // In a future update, we could add downlaoder logic here.
+                // For now, we'll create the instance and it will show as "Missing" or fail at launch with a clear error.
             }
         }
 
@@ -454,75 +486,13 @@ export class InstanceManager {
     }
 
     private detectLoader(jsonPath: string, id: string): string {
-        try {
-            const content = readFileSync(jsonPath, 'utf-8');
-            const data = JSON.parse(content);
-            const lowerId = id.toLowerCase();
-
-            // 1. Check ID/Name heuristics
-            if (lowerId.includes('neoforge')) return 'neoforge';
-            if (lowerId.includes('forge')) return 'forge';
-            if (lowerId.includes('fabric')) return 'fabric';
-            if (lowerId.includes('quilt')) return 'quilt';
-
-            // 2. Check JSON data
-            const mainClass = data.mainClass || '';
-            if (mainClass.includes('fabric')) return 'fabric';
-            if (mainClass.includes('forge')) return 'forge'; // includes cpw.mods... or net.minecraftforge
-            if (mainClass.includes('quilt')) return 'quilt';
-
-            // 3. Libraries check (most robust)
-            if (data.libraries && Array.isArray(data.libraries)) {
-                const libs = data.libraries.map((l: any) => l.name || '');
-                if (libs.some((n: string) => n.includes('net.fabricmc:fabric-loader'))) return 'fabric';
-                if (libs.some((n: string) => n.includes('net.neoforged'))) return 'neoforge';
-                if (libs.some((n: string) => n.includes('minecraftforge'))) return 'forge';
-                if (libs.some((n: string) => n.includes('org.quiltmc'))) return 'quilt';
-            }
-
-            return 'vanilla';
-        } catch {
-            return 'vanilla';
-        }
+        const info = VersionUtils.getInfo(jsonPath, id);
+        return info.loader;
     }
 
     private extractVersion(jsonPath: string, folderName: string): string {
-        try {
-            const content = readFileSync(jsonPath, 'utf-8');
-            const data = JSON.parse(content);
-
-            // 1. Try 'inheritsFrom' (e.g. "1.21.1") - Very reliable for Forge/Fabric
-            if (data.inheritsFrom && data.inheritsFrom.match(/^\d+\.\d+(\.\d+)?$/)) {
-                return data.inheritsFrom;
-            }
-
-            // 2. Try 'jar' property
-            if (data.jar && data.jar.match(/^\d+\.\d+(\.\d+)?$/)) {
-                return data.jar;
-            }
-
-            // 2. Check arguments for version string (sometimes in game arguments)
-            // Skipped for now, can be complex.
-
-            // 3. Fallback: Regex on Folder Name
-            const versionMatch = folderName.match(/\b1\.\d+(\.\d+)?\b/);
-            if (versionMatch) {
-                return versionMatch[0];
-            }
-
-            // 4. Client.jar version in downloads?
-            if (data.downloads && data.downloads.client && data.downloads.client.url) {
-                const url = data.downloads.client.url;
-                const match = url.match(/\/versions\/(1\.\d+(\.\d+)?)\//);
-                if (match) return match[1];
-            }
-
-            return folderName;
-        } catch {
-            // Regex on folder as final backup
-            const versionMatch = folderName.match(/\b1\.\d+(\.\d+)?\b/);
-            return versionMatch ? versionMatch[0] : folderName;
-        }
+        const info = VersionUtils.getInfo(jsonPath, folderName);
+        return info.mcVersion;
     }
 
     async duplicateInstance(instanceId: string, newName: string) {
@@ -664,9 +634,9 @@ export class InstanceManager {
 
     async importInstance(event?: any) {
         const { filePaths } = await dialog.showOpenDialog({
-            title: 'Import Instance',
+            title: 'Import Instance / Modpack',
             properties: ['openFile'],
-            filters: [{ name: 'Zip Files', extensions: ['zip'] }]
+            filters: [{ name: 'Minecraft Files', extensions: ['zip', 'mrpack'] }]
         });
 
         if (!filePaths || filePaths.length === 0) return { success: false, canceled: true };
@@ -675,13 +645,32 @@ export class InstanceManager {
 
         const zipPath = filePaths[0];
         const zip = new AdmZip(zipPath);
-
-        // Read instance.json from zip to get ID/Name
         const zipEntries = zip.getEntries();
+
+        // 1. Detect if it's a Modpack (Modrinth or CurseForge)
+        const isModrinth = zipEntries.some(e => e.entryName === 'modrinth.index.json');
+        const isCurseForge = zipEntries.some(e => e.entryName === 'manifest.json');
+
+        if (isModrinth || isCurseForge) {
+            console.log(`[InstanceManager] Detected modpack import (${isModrinth ? 'Modrinth' : 'CurseForge'})`);
+            event?.sender.send('instance:import-progress', { status: 'Initializing modpack installer...', progress: 20 });
+
+            const { ModpackInstaller } = await import('../utils/ModpackInstaller');
+            try {
+                return await ModpackInstaller.installFromLocalZip(zipPath, (status, progress) => {
+                    event?.sender.send('instance:import-progress', { status, progress });
+                });
+            } catch (error: any) {
+                console.error("[InstanceManager] Modpack import failed:", error);
+                return { success: false, error: `Modpack import failed: ${error.message}` };
+            }
+        }
+
+        // 2. Fallback to Native Whoap Instance Import
         const configEntry = zipEntries.find(entry => entry.entryName === 'instance.json');
 
         if (!configEntry) {
-            throw new Error('Invalid instance file: instance.json not found inside zip.');
+            throw new Error('Invalid file: instance.json or modpack manifest not found inside zip.');
         }
 
         event?.sender.send('instance:import-progress', { status: 'Parsing configuration...', progress: 30 });
@@ -753,20 +742,14 @@ export class InstanceManager {
                     await fs.mkdir(destPath, { recursive: true });
 
                     // Create instance.json
-                    let version = 'unknown';
-                    let loader = 'vanilla';
-
                     const jsonPath = path.join(sourcePath, `${id}.json`);
-                    if (existsSync(jsonPath)) {
-                        version = this.extractVersion(jsonPath, id);
-                        loader = this.detectLoader(jsonPath, id);
-                    }
+                    const info = existsSync(jsonPath) ? VersionUtils.getInfo(jsonPath, id) : { id, name: id, mcVersion: 'unknown', loader: 'vanilla' as const };
 
                     const data: Instance = {
                         id: id,
-                        name: id,
-                        version: version,
-                        loader: loader as any,
+                        name: info.name,
+                        version: info.mcVersion,
+                        loader: info.loader,
                         created: Date.now(),
                         lastPlayed: 0,
                         type: 'imported',

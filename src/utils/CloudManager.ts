@@ -150,6 +150,20 @@ export const CloudManager = {
         return data || [];
     },
 
+    checkUsernameExists: async (username: string) => {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('username')
+            .ilike('username', username)
+            .single();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows found"
+            console.error("Check Username Error:", error);
+            return false;
+        }
+        return !!data;
+    },
+
     sendFriendRequest: async (senderId: string, receiverId: string) => {
         const { error } = await supabase
             .from('friendships')

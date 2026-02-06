@@ -42,7 +42,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onOfflineLogin }) 
             uuid: profile.uuid,
             token: profile.token,
             refreshToken: profile.refreshToken,
-            type
+            type,
+            preferredSkin: profile.preferredSkin
         };
         AccountManager.addAccount(account);
         onLoginSuccess({ ...profile, type });
@@ -91,11 +92,22 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onOfflineLogin }) 
 
         try {
             if (isRegistering) {
+                if (!username) {
+                    throw new Error("Username is required");
+                }
+
+                // Check availability
+                const { CloudManager } = await import('../utils/CloudManager');
+                const isTaken = await CloudManager.checkUsernameExists(username);
+                if (isTaken) {
+                    throw new Error("Username is already taken. Please choose another.");
+                }
+
                 const { data, error } = await supabase.auth.signUp({
                     email,
                     password,
                     options: {
-                        data: { display_name: username || email.split('@')[0] }
+                        data: { display_name: username }
                     }
                 });
 
@@ -164,24 +176,32 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onOfflineLogin }) 
             AccountManager.setActive(account.uuid);
 
             // Save session to electron-store for persistence across app restarts
-            await window.ipcRenderer.invoke('auth:save-whoap-session', {
+            await window.ipcRenderer.invoke('auth:set-session', {
+                type: account.type,
                 name: account.name,
                 uuid: account.uuid,
                 token: account.token,
-                refreshToken: account.refreshToken
+                refreshToken: account.refreshToken,
+                expiresAt: account.expiresAt,
+                preferredSkin: account.preferredSkin
             });
 
-            // Sync Supabase session if it's a whoap account
-            if (account.type === 'whoap' && account.token) {
-                const { CloudManager } = await import('../utils/CloudManager');
-                await CloudManager.syncSession(account.token, account.refreshToken);
+            // Sync Supabase session if it's a whoap account (only when online)
+            if (account.type === 'whoap' && account.token && navigator.onLine) {
+                try {
+                    const { CloudManager } = await import('../utils/CloudManager');
+                    await CloudManager.syncSession(account.token, account.refreshToken);
+                } catch (e) {
+                    console.warn("[Login] Offline, skipping session sync");
+                }
             }
 
             onLoginSuccess({
                 name: account.name,
                 uuid: account.uuid,
                 token: account.token,
-                type: account.type
+                type: account.type,
+                preferredSkin: account.preferredSkin
             });
         } catch (err) {
             console.error("Account selection failed", err);
@@ -361,6 +381,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onOfflineLogin }) 
                                     {selectedAccount && (
                                         <UserAvatar
                                             username={selectedAccount.name}
+                                            preferredSkin={selectedAccount.preferredSkin}
                                             uuid={selectedAccount.uuid}
                                             className={styles.miniAvatar}
                                             accountType={selectedAccount.type as any}
@@ -391,6 +412,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onOfflineLogin }) 
                                         >
                                             <UserAvatar
                                                 username={acc.name}
+                                                preferredSkin={acc.preferredSkin}
                                                 uuid={acc.uuid}
                                                 className={styles.miniAvatar}
                                                 accountType={acc.type as any}
@@ -422,6 +444,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onOfflineLogin }) 
 
             {/* Right Panel - Background */}
             <div className={styles.bgPanel} style={{ backgroundImage: `url(${loginBg})` }} />
-        </div>
+        </div >
     );
 };

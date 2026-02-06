@@ -1,8 +1,7 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import styles from './Sidebar.module.css';
 import { Home, Folder, Settings, LogOut, Globe, Package, Newspaper, Users, Code, ShieldAlert, User, Image } from 'lucide-react';
 import logo from '../assets/logo.png';
-import { supabase } from '../lib/supabase';
 import { UserAvatar } from './UserAvatar';
 import { useAuth } from '../context/AuthContext';
 
@@ -66,52 +65,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
         }
     ];
 
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const handleSkinUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file || !user.uuid) return;
-
-        // Basic validation
-        if (file.type !== 'image/png') {
-            alert('Please select a PNG file.');
-            return;
-        }
-
-        try {
-            const { error } = await supabase.storage
-                .from('skins')
-                .upload(`${user.uuid}.png`, file, {
-                    upsert: true,
-                    contentType: 'image/png',
-                    cacheControl: '3600'
-                });
-
-            if (error) {
-                console.error('Upload error:', error);
-                alert('Failed to upload skin: ' + error.message);
-            } else {
-                alert('Skin uploaded successfully! It will appear in-game next launch.');
-                // Optional: Force reload logic could go here
-            }
-        } catch (err) {
-            console.error('Upload exception:', err);
-            alert('An unexpected error occurred.');
-        } finally {
-            // Reset input
-            if (fileInputRef.current) fileInputRef.current.value = '';
-        }
-    };
 
     return (
         <div className={styles.sidebar}>
-            <input
-                type="file"
-                ref={fileInputRef}
-                style={{ display: 'none' }}
-                accept=".png"
-                onChange={handleSkinUpload}
-            />
             <div className={styles.logoArea}>
                 <img src={logo} alt="Whoap" className={styles.logoImg} />
                 <div style={{ display: 'flex', flexDirection: 'column', paddingLeft: '2px' }}>
@@ -149,18 +105,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
             </nav>
 
             <div
-                className={`${styles.userProfile} ${activeTab === 'profile' ? styles.activeProfile : ''}`}
-                onClick={() => onTabChange('profile')}
-                style={{ cursor: 'pointer' }}
+                className={`${styles.userProfile}`}
             >
                 <div
                     className={styles.avatarHead}
-                    onClick={(e) => {
-                        e.stopPropagation(); // Prevent tab change
-                        fileInputRef.current?.click();
-                    }}
-                    title="Click to upload custom skin"
-                    style={{ cursor: 'pointer' }}
                 >
                     <UserAvatar
                         username={user.name || (user as any).preferredSkin}
