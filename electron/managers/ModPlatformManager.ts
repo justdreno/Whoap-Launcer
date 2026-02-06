@@ -68,22 +68,26 @@ export class ModPlatformManager {
     }
 
     private registerListeners() {
-        ipcMain.handle('mods:search', async (_, query: string, filters: { version: string; loader: string; offset?: number; limit?: number }) => {
-            return await this.searchMods(query, filters);
+        // Generalized Search
+        ipcMain.handle('platform:search', async (_, query: string, type: 'mod' | 'resourcepack' | 'shader', filters: { version: string; loader: string; offset?: number; limit?: number }) => {
+            return await this.searchProject(query, type, filters);
         });
 
-        ipcMain.handle('mods:get-versions', async (_, projectId: string, filters: { version: string; loader: string }) => {
-            return await this.getProjectVersions(projectId, filters);
+        // Generalized Versions
+        ipcMain.handle('platform:get-versions', async (_, projectId: string, type: 'mod' | 'resourcepack' | 'shader', filters: { version: string; loader: string }) => {
+            return await this.getProjectVersions(projectId, type, filters);
         });
 
-        ipcMain.handle('mods:get-projects', async (_, projectIds: string[]) => {
+        // Generalized Project Details
+        ipcMain.handle('platform:get-projects', async (_, projectIds: string[]) => {
             return await this.getProjects(projectIds);
         });
 
-        ipcMain.handle('mods:install', async (event, instanceId: string, versionId: string) => {
+        // Generalized Install
+        ipcMain.handle('platform:install', async (event, instanceId: string, versionId: string, type: 'mod' | 'resourcepack' | 'shader' = 'mod') => {
             try {
-                const results = await this.smartInstall(instanceId, versionId, (status) => {
-                    event.sender.send('mods:install-progress', status);
+                const results = await this.smartInstall(instanceId, versionId, type, (status) => {
+                    event.sender.send('platform:install-progress', status);
                 });
                 return { success: true, results };
             } catch (error: any) {
@@ -91,15 +95,35 @@ export class ModPlatformManager {
                 return { success: false, error: error.message };
             }
         });
+
+        // Legacy compatibility for Mods
+        ipcMain.handle('mods:search', async (_, query: string, filters: any) => this.searchProject(query, 'mod', filters));
+        ipcMain.handle('mods:get-versions', async (_, pid: string, filters: any) => this.getProjectVersions(pid, 'mod', filters));
+        ipcMain.handle('mods:get-projects', async (_, pids: string[]) => this.getProjects(pids));
+        ipcMain.handle('mods:install', async (e, iid, vid) => {
+            try {
+                const results = await this.smartInstall(iid, vid, 'mod', (s) => e.sender.send('mods:install-progress', s));
+                return { success: true, results };
+            } catch (error: any) { return { success: false, error: error.message }; }
+        });
     }
 
-    private async searchMods(query: string, filters: { version: string; loader: string; offset?: number; limit?: number }) {
+    private async searchProject(query: string, type: 'mod' | 'resourcepack' | 'shader', filters: { version: string; loader?: string; offset?: number; limit?: number }) {
         try {
-            const facets = [
-                [`categories:${filters.loader}`],
-                [`versions:${filters.version}`],
-                ["project_type:mod"]
-            ];
+            const facets: string[][] = [];
+
+            // Project Type
+            if (type === 'mod') facets.push(["project_type:mod"]);
+            else if (type === 'resourcepack') facets.push(["project_type:resourcepack"]);
+            else if (type === 'shader') facets.push(["project_type:shader"]);
+
+            // Version
+            if (filters.version) facets.push([`versions:${filters.version}`]);
+
+            // Loader (Only for mods)
+            if (type === 'mod' && filters.loader) {
+                facets.push([`categories:${filters.loader}`]);
+            }
 
             const response = await axios.get(`${API_BASE}/search`, {
                 params: {
@@ -119,13 +143,18 @@ export class ModPlatformManager {
         }
     }
 
-    private async getProjectVersions(projectId: string, filters: { version: string; loader: string }) {
+    private async getProjectVersions(projectId: string, type: 'mod' | 'resourcepack' | 'shader', filters: { version: string; loader?: string }) {
         try {
+            const params: any = {};
+            if (filters.version) params.game_versions = JSON.stringify([filters.version]);
+
+            // Loader filter is only for mods
+            if (type === 'mod' && filters.loader) {
+                params.loaders = JSON.stringify([filters.loader]);
+            }
+
             const response = await axios.get(`${API_BASE}/project/${projectId}/version`, {
-                params: {
-                    loaders: JSON.stringify([filters.loader]),
-                    game_versions: JSON.stringify([filters.version])
-                },
+                params,
                 headers: { 'User-Agent': USER_AGENT }
             });
             return response.data as ModrinthVersion[];
@@ -135,7 +164,7 @@ export class ModPlatformManager {
         }
     }
 
-    private async getProjects(projectIds: string[]) {
+    public async getProjects(projectIds: string[]) {
         if (!projectIds || projectIds.length === 0) return [];
         try {
             const response = await axios.get(`${API_BASE}/projects`, {
@@ -151,7 +180,7 @@ export class ModPlatformManager {
         }
     }
 
-    private async getVersion(versionId: string): Promise<ModrinthVersion> {
+    public async getVersion(versionId: string): Promise<ModrinthVersion> {
         const response = await axios.get(`${API_BASE}/version/${versionId}`, {
             headers: { 'User-Agent': USER_AGENT }
         });
@@ -164,16 +193,20 @@ export class ModPlatformManager {
     private async smartInstall(
         instanceId: string,
         rootVersionId: string,
+        type: 'mod' | 'resourcepack' | 'shader',
         progressCallback: (status: InstallStatus) => void
     ): Promise<InstallStatus[]> {
         const instancePath = path.join(ConfigManager.getInstancesPath(), instanceId);
-        const modsDir = path.join(instancePath, 'mods');
-        await fs.mkdir(modsDir, { recursive: true });
 
-        const installed = new Set<string>(); // Track installed Project IDs to avoid loops
+        let targetDirName = 'mods';
+        if (type === 'resourcepack') targetDirName = 'resourcepacks';
+        else if (type === 'shader') targetDirName = 'shaderpacks';
+
+        const targetDir = path.join(instancePath, targetDirName);
+        await fs.mkdir(targetDir, { recursive: true });
+
+        const installed = new Set<string>();
         const installQueue: ModrinthVersion[] = [];
-        const resolutionStack: string[] = [rootVersionId]; // For recursion
-        const results: InstallStatus[] = [];
 
         // 1. Resolve Phase
         const resolve = async (vId: string) => {
@@ -182,26 +215,22 @@ export class ModPlatformManager {
             try {
                 const version = await this.getVersion(vId);
 
-                // If we've already processed this project in this session, skip
                 if (installed.has(version.project_id)) return;
                 installed.add(version.project_id);
 
                 installQueue.push(version);
 
-                // Check dependencies
-                for (const dep of version.dependencies) {
-                    if (dep.dependency_type === 'required') {
-                        if (dep.version_id) {
-                            await resolve(dep.version_id);
-                        } else if (dep.project_id) {
-                            // Need to find a compatible version for this dependency project
-                            // We need the original instance metadata to know which MC version/loader to pick
-                            // Ideally, we pass that down. for now, assuming same as parent's game_versions[0]
-                            const bestDepVersion = await this.findCompatibleVersion(dep.project_id, version.game_versions[0], version.loaders[0]);
-                            if (bestDepVersion) {
-                                await resolve(bestDepVersion.id);
-                            } else {
-                                console.warn(`Could not resolve dependency project ${dep.project_id}`);
+                // Check dependencies (Only recursive for mods)
+                if (type === 'mod') {
+                    for (const dep of version.dependencies) {
+                        if (dep.dependency_type === 'required') {
+                            if (dep.version_id) {
+                                await resolve(dep.version_id);
+                            } else if (dep.project_id) {
+                                const bestDepVersion = await this.findCompatibleVersion(dep.project_id, version.game_versions[0], version.loaders[0]);
+                                if (bestDepVersion) {
+                                    await resolve(bestDepVersion.id);
+                                }
                             }
                         }
                     }
@@ -214,17 +243,16 @@ export class ModPlatformManager {
         await resolve(rootVersionId);
 
         // 2. Install Phase
+        const results: InstallStatus[] = [];
         for (const ver of installQueue) {
             const primaryFile = ver.files.find(f => f.primary) || ver.files[0];
-            const destPath = path.join(modsDir, primaryFile.filename);
+            const destPath = path.join(targetDir, primaryFile.filename);
 
-            // Check if exists (by name or hash could be better, but name is fast)
             try {
                 await fs.access(destPath);
-                results.push({ modName: ver.name, status: 'skipped' }); // Already exists
+                results.push({ modName: ver.name, status: 'skipped' });
                 progressCallback({ modName: ver.name, status: 'skipped' });
             } catch {
-                // Download
                 progressCallback({ modName: ver.name, status: 'downloading' });
                 try {
                     const response = await axios.get(primaryFile.url, { responseType: 'stream' });
@@ -237,12 +265,11 @@ export class ModPlatformManager {
                 }
             }
         }
-
         return results;
     }
 
     private async findCompatibleVersion(projectId: string, gameVersion: string, loader: string): Promise<ModrinthVersion | null> {
-        const versions = await this.getProjectVersions(projectId, { version: gameVersion, loader });
+        const versions = await this.getProjectVersions(projectId, 'mod', { version: gameVersion, loader });
         return versions.length > 0 ? versions[0] : null;
     }
 }

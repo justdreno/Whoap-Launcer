@@ -16,13 +16,24 @@ import {
     FolderSearch,
     X,
     Download,
-    CheckCircle
+    CheckCircle,
+    Box,
+    Globe
 } from 'lucide-react';
 import { VersionScannerModal } from '../components/VersionScannerModal';
 import { AccountManager } from '../utils/AccountManager';
 import { CloudManager } from '../utils/CloudManager';
 import { useToast } from '../context/ToastContext';
 import { ProcessingModal } from '../components/ProcessingModal';
+
+interface ProxyConfig {
+    enabled: boolean;
+    host: string;
+    port: number;
+    type: 'http' | 'socks';
+    username?: string;
+    password?: string;
+}
 
 interface JavaPaths {
     [version: string]: string;
@@ -36,6 +47,9 @@ interface Config {
     javaPaths: JavaPaths;
     launchBehavior: 'hide' | 'minimize' | 'keep';
     showConsoleOnLaunch: boolean;
+    jvmPreset: 'potato' | 'standard' | 'pro' | 'extreme' | 'custom';
+    jvmArgs: string[];
+    proxy: ProxyConfig;
 }
 
 const JAVA_VERSIONS = ['8', '11', '16', '17', '21'];
@@ -95,12 +109,41 @@ export const Settings = () => {
         if (!config) return;
         setSaving(true);
         try {
-            await window.ipcRenderer.invoke('config:set', key, value);
-            const newConfig = { ...config, [key]: value };
-            setConfig(newConfig);
-            const account = AccountManager.getActive();
-            if (account?.type === 'whoap') {
-                CloudManager.saveSettings(newConfig, account.uuid).catch(console.error);
+            // Special handling for presets: update RAM values too
+            if (key === 'jvmPreset' && value !== 'custom') {
+                let min = config.minRam;
+                let max = config.maxRam;
+
+                if (value === 'potato') {
+                    min = 1024; max = 2048;
+                } else if (value === 'standard') {
+                    min = 1024; max = 4096;
+                } else if (value === 'pro') {
+                    min = 2048; max = 8192;
+                } else if (value === 'extreme') {
+                    min = 4096; max = 12288;
+                }
+
+                await window.ipcRenderer.invoke('config:set', 'minRam', min);
+                await window.ipcRenderer.invoke('config:set', 'maxRam', max);
+                await window.ipcRenderer.invoke('config:set', 'jvmPreset', value);
+
+                const newConfig = { ...config, jvmPreset: value, minRam: min, maxRam: max };
+                setConfig(newConfig);
+
+                const account = AccountManager.getActive();
+                if (account?.type === 'whoap') {
+                    CloudManager.saveSettings(newConfig, account.uuid).catch(console.error);
+                }
+            } else {
+                // Standard single-key update
+                await window.ipcRenderer.invoke('config:set', key, value);
+                const newConfig = { ...config, [key]: value };
+                setConfig(newConfig);
+                const account = AccountManager.getActive();
+                if (account?.type === 'whoap') {
+                    CloudManager.saveSettings(newConfig, account.uuid).catch(console.error);
+                }
             }
         } catch (e) {
             console.error("Failed to save setting", e);
@@ -247,16 +290,52 @@ export const Settings = () => {
                     </div>
                 </section>
 
-                {/* Memory Section */}
+                {/* Performance & JVM Section */}
                 <section className={styles.section}>
-                    <h3><Cpu size={18} /> Memory Allocation</h3>
+                    <div className={styles.sectionHeader}>
+                        <h3><Cpu size={18} /> Performance & JVM</h3>
+                        <span className={styles.presetBadge}>{config.jvmPreset.toUpperCase()} PROFILE</span>
+                    </div>
+
+                    <div className={styles.presetGrid}>
+                        {[
+                            { id: 'potato', name: 'Potato', icon: <Box size={20} />, desc: 'Low-end. Max 2GB RAM. Basic flags.' },
+                            { id: 'standard', name: 'Standard', icon: <Monitor size={20} />, desc: 'Balanced. 4GB RAM. Standard G1GC.' },
+                            { id: 'pro', name: 'Pro', icon: <RotateCcw size={20} />, desc: 'Power user. 8GB RAM. Aikar flags.' },
+                            { id: 'extreme', name: 'Extreme', icon: <AlertTriangle size={20} />, desc: 'Peak power. 12GB+ RAM. Expert flags.' },
+                            { id: 'custom', name: 'Custom', icon: <Cpu size={20} />, desc: 'Full manual control. Edit args below.' },
+                        ].map(preset => (
+                            <div
+                                key={preset.id}
+                                className={`${styles.presetCard} ${config.jvmPreset === preset.id ? styles.presetActive : ''}`}
+                                onClick={() => updateConfig('jvmPreset', preset.id)}
+                            >
+                                <div className={styles.presetIcon}>{preset.icon}</div>
+                                <div className={styles.presetInfo}>
+                                    <div className={styles.presetName}>{preset.name}</div>
+                                    <div className={styles.presetDesc}>{preset.desc}</div>
+                                </div>
+                                {config.jvmPreset === preset.id && <div className={styles.checkMark}><CheckCircle size={14} /></div>}
+                            </div>
+                        ))}
+                    </div>
+
                     <div className={styles.settingRow}>
                         <div className={styles.labelCol}>
                             <span className={styles.label}>Minimum RAM</span>
                         </div>
                         <div className={styles.sliderCol}>
                             <span className={styles.rangeValue}>{config.minRam} MB</span>
-                            <input type="range" min="512" max={config.maxRam} step="256" value={config.minRam} onChange={(e) => updateConfig('minRam', parseInt(e.target.value))} className={styles.slider} />
+                            <input
+                                type="range"
+                                min="512"
+                                max={config.maxRam}
+                                step="256"
+                                value={config.minRam}
+                                disabled={config.jvmPreset !== 'custom'}
+                                onChange={(e) => updateConfig('minRam', parseInt(e.target.value))}
+                                className={styles.slider}
+                            />
                         </div>
                     </div>
                     <div className={styles.settingRow}>
@@ -265,9 +344,33 @@ export const Settings = () => {
                         </div>
                         <div className={styles.sliderCol}>
                             <span className={styles.rangeValue}>{config.maxRam} MB ({(config.maxRam / 1024).toFixed(1)} GB)</span>
-                            <input type="range" min={config.minRam} max="16384" step="256" value={config.maxRam} onChange={(e) => updateConfig('maxRam', parseInt(e.target.value))} className={styles.slider} />
+                            <input
+                                type="range"
+                                min={config.minRam}
+                                max="32768"
+                                step="256"
+                                value={config.maxRam}
+                                disabled={config.jvmPreset !== 'custom'}
+                                onChange={(e) => updateConfig('maxRam', parseInt(e.target.value))}
+                                className={styles.slider}
+                            />
                         </div>
                     </div>
+
+                    {config.jvmPreset === 'custom' && (
+                        <div className={styles.customArgsRow}>
+                            <div className={styles.labelCol}>
+                                <span className={styles.label}>Custom JVM Arguments</span>
+                                <span className={styles.hint}>One argument per line. Use with caution.</span>
+                            </div>
+                            <textarea
+                                className={styles.argsArea}
+                                placeholder="-XX:+UseZGC&#10;-Xlog:gc*"
+                                value={config.jvmArgs.join('\n')}
+                                onChange={(e) => updateConfig('jvmArgs', e.target.value.split('\n').filter(a => a.trim()))}
+                            />
+                        </div>
+                    )}
                 </section>
 
                 {/* Java Section */}
@@ -325,6 +428,79 @@ export const Settings = () => {
                             <input type="checkbox" checked={config.showConsoleOnLaunch} onChange={(e) => updateConfig('showConsoleOnLaunch', e.target.checked)} />
                             <span className={styles.toggleSlider}></span>
                         </label>
+                    </div>
+                </section>
+
+                {/* Network & Proxy Section */}
+                <section className={styles.section}>
+                    <div className={styles.sectionHeader}>
+                        <h3><Globe size={18} /> Network & Proxy</h3>
+                        <label className={styles.toggle}>
+                            <input
+                                type="checkbox"
+                                checked={config.proxy.enabled}
+                                onChange={(e) => updateConfig('proxy', { ...config.proxy, enabled: e.target.checked })}
+                            />
+                            <span className={styles.toggleSlider}></span>
+                        </label>
+                    </div>
+
+                    <div className={config.proxy.enabled ? styles.proxyControls : styles.proxyControlsDisabled}>
+                        <div className={styles.settingRow}>
+                            <div className={styles.labelCol}>
+                                <span className={styles.label}>Proxy Type</span>
+                            </div>
+                            <div className={styles.radioGroup}>
+                                <label className={`${styles.radioOption} ${config.proxy.type === 'http' ? styles.selected : ''}`}>
+                                    <input
+                                        type="radio"
+                                        name="proxyType"
+                                        value="http"
+                                        checked={config.proxy.type === 'http'}
+                                        onChange={() => updateConfig('proxy', { ...config.proxy, type: 'http' })}
+                                    />
+                                    HTTP
+                                </label>
+                                <label className={`${styles.radioOption} ${config.proxy.type === 'socks' ? styles.selected : ''}`}>
+                                    <input
+                                        type="radio"
+                                        name="proxyType"
+                                        value="socks"
+                                        checked={config.proxy.type === 'socks'}
+                                        onChange={() => updateConfig('proxy', { ...config.proxy, type: 'socks' })}
+                                    />
+                                    SOCKS5
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className={styles.proxyGrid}>
+                            <div className={styles.inputGroup}>
+                                <label>Host / IP</label>
+                                <input
+                                    type="text"
+                                    className={styles.input}
+                                    placeholder="e.g. 127.0.0.1"
+                                    value={config.proxy.host}
+                                    onChange={(e) => updateConfig('proxy', { ...config.proxy, host: e.target.value })}
+                                />
+                            </div>
+                            <div className={styles.inputGroup}>
+                                <label>Port</label>
+                                <input
+                                    type="number"
+                                    className={styles.input}
+                                    placeholder="8080"
+                                    value={config.proxy.port}
+                                    onChange={(e) => updateConfig('proxy', { ...config.proxy, port: parseInt(e.target.value) || 0 })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className={styles.hintText}>
+                            <AlertTriangle size={12} />
+                            Game traffic will be routed through this proxy using JVM system properties.
+                        </div>
                     </div>
                 </section>
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import styles from './Sidebar.module.css';
-import { Home, Folder, Settings, LogOut, Globe, Package, Newspaper, Users, Code, ShieldAlert, User, Image } from 'lucide-react';
+import { Home, Settings, FolderOpen, Package, Users, Image, Layers, Sparkles, LogOut, Globe, Newspaper, Code, ShieldAlert, User } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { UserAvatar } from './UserAvatar';
 import { useAuth } from '../context/AuthContext';
@@ -38,7 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
             name: 'General',
             tabs: [
                 { id: 'home', label: 'Home', icon: Home },
-                { id: 'profiles', label: 'Profiles', icon: Folder },
+                { id: 'profiles', label: 'Profiles', icon: FolderOpen },
                 { id: 'news', label: 'News', icon: Newspaper },
             ]
         },
@@ -46,6 +46,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
             name: 'Library',
             tabs: [
                 { id: 'mods', label: 'Mods', icon: Package },
+                { id: 'resourcepacks', label: 'Resource Packs', icon: Layers },
+                { id: 'shaderpacks', label: 'Shader Packs', icon: Sparkles },
                 { id: 'modpacks', label: 'Modpacks', icon: Globe },
                 { id: 'screenshots', label: 'Screenshots', icon: Image },
             ]
@@ -104,12 +106,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
                 ))}
             </nav>
 
-            <div
-                className={`${styles.userProfile}`}
-            >
-                <div
-                    className={styles.avatarHead}
-                >
+            <div className={`${styles.userProfile}`}>
+                <div className={styles.avatarHead}>
                     <UserAvatar
                         username={user.name || (user as any).preferredSkin}
                         preferredSkin={(user as any).preferredSkin}
@@ -120,8 +118,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
                 </div>
                 <div className={styles.userInfo}>
                     <div className={styles.userName}>{user.name}</div>
-
-                    {/* Rank Display */}
                     <div className={styles.userRole} style={{ color: currentRole.color }}>
                         <RankIcon size={12} strokeWidth={2.5} />
                         {currentRole.label}

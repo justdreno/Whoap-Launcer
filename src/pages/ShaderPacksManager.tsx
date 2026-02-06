@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import styles from './ModsManager.module.css';
+import styles from './ModsManager.module.css'; // Re-use styles
 import { Instance, InstanceApi } from '../api/instances';
 import { Search, Cuboid, ChevronRight, Package, Box } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
-import { InstanceMods } from './InstanceMods';
+import { InstanceShaderPacks } from './';
 import { Skeleton } from '../components/Skeleton';
 
-interface ModsManagerProps {
+interface ShaderPacksManagerProps {
     user: any;
 }
 
-export const ModsManager: React.FC<ModsManagerProps> = () => {
+export const ShaderPacksManager: React.FC<ShaderPacksManagerProps> = () => {
     const [instances, setInstances] = useState<Instance[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -24,11 +24,8 @@ export const ModsManager: React.FC<ModsManagerProps> = () => {
         setLoading(true);
         try {
             const list = await InstanceApi.list();
-            // Filter only moddable instances (exclude generic types if needed, currently allowing all known loaders)
-            const moddable = list.filter(i =>
-                ['fabric', 'forge', 'neoforge', 'quilt'].includes(i.loader?.toLowerCase())
-            );
-            setInstances(moddable);
+            // Typically shaders need Optifine or Iris (Fabric), but managing folders is safe for any instance
+            setInstances(list);
         } catch (e) {
             console.error(e);
         } finally {
@@ -38,7 +35,7 @@ export const ModsManager: React.FC<ModsManagerProps> = () => {
 
     if (selectedId) {
         return (
-            <InstanceMods
+            <InstanceShaderPacks
                 instanceId={selectedId}
                 onBack={() => {
                     setSelectedId(null);
@@ -51,15 +48,15 @@ export const ModsManager: React.FC<ModsManagerProps> = () => {
     const filtered = instances.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
 
     const getLoaderClass = (loader: string) => {
-        return styles[`loader${loader.charAt(0).toUpperCase() + loader.slice(1).toLowerCase()}`] || styles.loaderVanilla;
+        return styles[`loader${(loader || 'Vanilla').charAt(0).toUpperCase() + (loader || 'Vanilla').slice(1).toLowerCase()}`] || styles.loaderVanilla;
     };
 
     return (
         <div className={styles.container}>
             <div className={styles.topSection}>
                 <PageHeader
-                    title="Mods"
-                    description="Manage mods for your instances."
+                    title="Shader Packs"
+                    description="Manage shaders for your instances."
                 />
 
                 <div className={styles.searchWrapper}>
@@ -85,8 +82,8 @@ export const ModsManager: React.FC<ModsManagerProps> = () => {
                         <div className={styles.emptyIcon}>
                             <Box size={48} strokeWidth={1} />
                         </div>
-                        <h3>No Moddable Instances</h3>
-                        <p>Create a Fabric, Forge, or Quilt profile to verify mods.</p>
+                        <h3>No Instances Found</h3>
+                        <p>Create an instance to add shader packs.</p>
                     </div>
                 ) : (
                     filtered.map(inst => (
@@ -97,7 +94,7 @@ export const ModsManager: React.FC<ModsManagerProps> = () => {
                                 <div className={styles.cardHeader}>
                                     <div className={`${styles.loaderBadge} ${getLoaderClass(inst.loader)}`}>
                                         <Cuboid size={12} strokeWidth={2.5} />
-                                        {inst.loader}
+                                        {inst.loader || 'Vanilla'}
                                     </div>
                                     <span className={styles.version}>{inst.version}</span>
                                 </div>
@@ -106,7 +103,7 @@ export const ModsManager: React.FC<ModsManagerProps> = () => {
                                     <h3 className={styles.instanceName}>{inst.name}</h3>
                                     <div className={styles.actionRow}>
                                         <span className={styles.manageLabel}>
-                                            <Package size={14} /> Manage Mods
+                                            <Package size={14} /> Manage Shaders
                                         </span>
                                         <div className={styles.arrowBtn}>
                                             <ChevronRight size={16} />

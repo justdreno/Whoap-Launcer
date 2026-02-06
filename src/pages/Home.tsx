@@ -4,7 +4,7 @@ import styles from './Home.module.css';
 import { InstanceApi, Instance } from '../api/instances';
 import { LaunchApi } from '../api/launch';
 import { NetworkApi, ServerStatus } from '../api/network';
-import { ChevronDown, Rocket, Clock, Layers, Star, Globe, Search, Wifi, WifiOff, Users as UsersIcon, Copy, Check } from 'lucide-react';
+import { ChevronDown, Rocket, Clock, Layers, Star, Globe, Search, Wifi, WifiOff, Users as UsersIcon, Copy, Check, X } from 'lucide-react';
 import heroBg from '../assets/background.png';
 import loginBg from '../assets/login_bg.png';
 import { useToast } from '../context/ToastContext';
@@ -26,6 +26,8 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
     const [selectedInstance, setSelectedInstance] = useState<Instance | null>(null);
     const [showInstanceDropdown, setShowInstanceDropdown] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showSearch, setShowSearch] = useState(false);
     const { showToast } = useToast();
 
     // Launch State
@@ -189,9 +191,21 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
     const mostRecentInstance = recentInstances.length > 0 ? recentInstances[0] : null;
     const activeInstance = selectedInstance || mostRecentInstance;
 
+    const filteredInstances = instances.filter(i =>
+        i.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        i.version.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
 
     return (
         <div className={styles.container}>
+            {/* Background Decorations */}
+            <div className={styles.bgDecorations}>
+                <div className={`${styles.blob} ${styles.blob1}`} />
+                <div className={`${styles.blob} ${styles.blob2}`} />
+                <div className={`${styles.blob} ${styles.blob3}`} />
+            </div>
+
             <PageHeader
                 title="Home"
                 description={`Welcome back, ${user.name}. Ready for your next adventure?`}
@@ -236,40 +250,82 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
 
                         {/* Instance Dropdown - Redesigned */}
                         {showInstanceDropdown && instances.length > 0 && (
-                            <div className={styles.instanceDropdown} style={{ top: 'calc(100% + 12px)', left: 0, width: 340 }}>
-                                {instances.map(inst => (
+                            <div
+                                className={styles.instanceDropdown}
+                                style={{ top: 'calc(100% + 12px)', left: 0, width: 340 }}
+                                onWheel={(e) => e.stopPropagation()}
+                            >
+                                <div className={styles.dropdownHeader}>
+                                    <div className={styles.dropdownTitle}>Switch Profile</div>
                                     <div
-                                        key={inst.id}
-                                        className={styles.instanceOption}
+                                        className={`${styles.searchToggle} ${showSearch ? styles.searchActive : ''}`}
                                         onClick={() => {
-                                            setSelectedInstance(inst);
-                                            setShowInstanceDropdown(false);
+                                            setShowSearch(!showSearch);
+                                            if (showSearch) setSearchQuery('');
                                         }}
                                     >
-                                        <div className={styles.loaderBadge}>
-                                            {getLoaderDisplay(inst.loader)}
-                                        </div>
-                                        <div style={{ flex: 1, overflow: 'hidden' }}>
-                                            <div className={styles.instanceName}>{inst.name}</div>
-                                            <div style={{ fontSize: '11px', color: '#666', marginTop: 2 }}>
-                                                {inst.version}
-                                            </div>
-                                        </div>
-                                        <div onClick={(e) => handleToggleFavorite(e, inst)} style={{ flexShrink: 0 }}>
-                                            <Star
-                                                size={16}
-                                                fill={inst.isFavorite ? "#ffaa00" : "none"}
-                                                color={inst.isFavorite ? "#ffaa00" : "#666"}
-                                                style={{ transition: 'all 0.2s' }}
-                                            />
-                                        </div>
+                                        <Search size={16} />
                                     </div>
-                                ))}
-                                {instances.length === 0 && (
-                                    <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
-                                        No profiles found
+                                </div>
+
+                                {showSearch && (
+                                    <div className={styles.searchContainer}>
+                                        <input
+                                            type="text"
+                                            className={styles.searchInput}
+                                            placeholder="Search profiles..."
+                                            autoFocus
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                        />
+                                        {searchQuery && (
+                                            <X
+                                                size={14}
+                                                className={styles.clearSearch}
+                                                onClick={() => setSearchQuery('')}
+                                            />
+                                        )}
                                     </div>
                                 )}
+
+                                <div className={styles.dropdownList}>
+                                    {filteredInstances.map(inst => (
+                                        <div
+                                            key={inst.id}
+                                            className={styles.instanceOption}
+                                            onClick={() => {
+                                                setSelectedInstance(inst);
+                                                setShowInstanceDropdown(false);
+                                                setShowSearch(false);
+                                                setSearchQuery('');
+                                            }}
+                                        >
+                                            <div className={styles.loaderBadge}>
+                                                {getLoaderDisplay(inst.loader)}
+                                            </div>
+                                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                                                <div className={styles.instanceName}>{inst.name}</div>
+                                                <div style={{ fontSize: '11px', color: '#666', marginTop: 2 }}>
+                                                    {inst.version}
+                                                </div>
+                                            </div>
+                                            <div onClick={(e) => handleToggleFavorite(e, inst)} style={{ flexShrink: 0 }}>
+                                                <Star
+                                                    size={16}
+                                                    fill={inst.isFavorite ? "#ffaa00" : "none"}
+                                                    color={inst.isFavorite ? "#ffaa00" : "#666"}
+                                                    style={{ transition: 'all 0.2s' }}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {filteredInstances.length === 0 && (
+                                        <div className={styles.noResults}>
+                                            No profiles found
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -427,7 +483,10 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
             {/* Featured Servers Section */}
             {featuredServers.length > 0 && (
                 <div className={styles.featuredSection}>
-                    <div className={styles.sectionTitle}><Globe size={18} /> Featured Servers</div>
+                    <div className={styles.sectionTitle}>
+                        <div className={styles.titleIcon}><Globe size={18} /></div>
+                        Featured Servers
+                    </div>
                     <div className={styles.serverGrid}>
                         {featuredServers.map((server, index) => {
                             const statusIcon = featuredStatuses[server.id]?.icon;
@@ -552,28 +611,44 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
             </div>
 
             {/* Recent Profiles - Full Width */}
-            <div>
-                <div className={styles.sectionTitle}><Clock size={18} /> Recent Profiles</div>
+            <div className={styles.recentProfilesSection}>
+                <div className={styles.sectionTitle}>
+                    <div className={styles.titleIcon}><Clock size={18} /></div>
+                    Recent Profiles
+                </div>
                 <div className={styles.grid}>
-                    {recentInstances.map(inst => (
-                        <div
-                            key={inst.id}
-                            className={styles.miniCard}
-                            style={selectedInstance?.id === inst.id ? { borderColor: '#ff8800', background: 'rgba(255, 136, 0, 0.1)' } : {}}
-                            onClick={() => setSelectedInstance(inst)}
-                        >
-                            <div className={styles.miniIcon}>
-                                {getLoaderDisplay(inst.loader)}
+                    {recentInstances.map(inst => {
+                        const loaderClass = styles[`miniLoader${inst.loader.charAt(0).toUpperCase() + inst.loader.slice(1).toLowerCase()}`] || styles.miniLoaderVanilla;
+                        const isSelected = selectedInstance?.id === inst.id;
+
+                        return (
+                            <div
+                                key={inst.id}
+                                className={`${styles.miniCard} ${isSelected ? styles.selected : ''}`}
+                                onClick={() => setSelectedInstance(inst)}
+                            >
+                                <div className={styles.miniIcon} style={{
+                                    background: inst.isFavorite
+                                        ? 'linear-gradient(135deg, #ff8800, #ff4400)'
+                                        : undefined
+                                }}>
+                                    {inst.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div className={styles.miniInfo}>
+                                    <div className={styles.miniName}>{inst.name}</div>
+                                    <div className={styles.miniVer}>
+                                        <span className={`${styles.miniLoaderLabel} ${loaderClass}`}>
+                                            {inst.loader}
+                                        </span>
+                                        {inst.version}
+                                    </div>
+                                </div>
+                                <div onClick={(e) => handleToggleFavorite(e, inst)} style={{ cursor: 'pointer', opacity: inst.isFavorite ? 1 : 0.4 }}>
+                                    <Star size={14} fill={inst.isFavorite ? "#ffaa00" : "none"} color={inst.isFavorite ? "#ffaa00" : "#666"} />
+                                </div>
                             </div>
-                            <div className={styles.miniInfo}>
-                                <div className={styles.miniName}>{inst.name}</div>
-                                <div className={styles.miniVer}>{inst.version} • {inst.loader}</div>
-                            </div>
-                            <div onClick={(e) => handleToggleFavorite(e, inst)} style={{ cursor: 'pointer' }}>
-                                <Star size={14} fill={inst.isFavorite ? "#ffaa00" : "none"} color={inst.isFavorite ? "#ffaa00" : "#666"} />
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                     {instances.length === 0 && <div style={{ color: '#666' }}>No profiles yet.</div>}
                 </div>
             </div>

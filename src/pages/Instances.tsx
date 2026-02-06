@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../components/PageHeader';
-import { Settings, RefreshCw, FolderOpen } from 'lucide-react';
+import { Settings, RefreshCw, FolderOpen, Clock, Star } from 'lucide-react';
 import { Instance, InstanceApi } from '../api/instances';
 import { CreateInstanceModal } from '../components/CreateInstanceModal';
 import { InstanceSettingsModal } from '../components/InstanceSettingsModal';
@@ -132,46 +132,83 @@ export const Instances: React.FC<InstancesProps> = ({ onSelectInstance }) => {
                         </button>
                     </div>
                 ) : (
-                    instances.map(instance => (
-                        <div key={instance.id} className={styles.instanceCard} onClick={() => onSelectInstance?.(instance)}>
-                            <div className={styles.instanceIcon}>
-                                <img src="https://assets.ppy.sh/beatmaps/1/covers/list.jpg" alt="Icon" style={{ display: 'none' }} />
-                                {instance.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className={styles.instanceInfo}>
-                                <div className={styles.instanceName}>{instance.name}</div>
-                                <div className={styles.instanceMeta}>
-                                    {instance.version} • {instance.loader}
+                    instances.map(instance => {
+                        const loaderClass = styles[`loader${instance.loader.charAt(0).toUpperCase() + instance.loader.slice(1).toLowerCase()}`] || styles.loaderVanilla;
+
+                        const formatRelativeTime = (timestamp: number) => {
+                            if (!timestamp || timestamp === 0) return 'Never';
+                            const diff = Date.now() - timestamp;
+                            const mins = Math.floor(diff / 60000);
+                            const hours = Math.floor(mins / 60);
+                            const days = Math.floor(hours / 24);
+
+                            if (days > 0) return `${days}d ago`;
+                            if (hours > 0) return `${hours}h ago`;
+                            if (mins > 0) return `${mins}m ago`;
+                            return 'Just now';
+                        };
+
+                        return (
+                            <div key={instance.id} className={styles.instanceCard} onClick={() => onSelectInstance?.(instance)}>
+                                <div className={styles.instanceIcon} style={{
+                                    background: instance.isFavorite
+                                        ? 'linear-gradient(135deg, #ff8800, #ff4400)'
+                                        : undefined
+                                }}>
+                                    {instance.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div className={styles.instanceInfo}>
+                                    <div className={styles.instanceName}>{instance.name}</div>
+                                    <div className={styles.instanceMeta}>
+                                        <span className={`${styles.loaderLabel} ${loaderClass}`}>
+                                            {instance.loader || 'Vanilla'}
+                                        </span>
+                                        <span>{instance.version}</span>
+                                    </div>
+                                    <div className={styles.timeInfo}>
+                                        <Clock size={12} />
+                                        <span>{formatRelativeTime(instance.lastPlayed)}</span>
+                                    </div>
+                                </div>
+
+                                {instance.isFavorite && (
+                                    <div style={{ position: 'absolute', top: 12, right: 12, color: '#ffaa00' }}>
+                                        <Star size={16} fill="#ffaa00" />
+                                    </div>
+                                )}
+
+                                <div className={styles.playOverlay}>
+                                    <div style={{ marginRight: 'auto', display: 'flex', gap: 8 }}>
+                                        {/* Future expansion: mod count, etc */}
+                                    </div>
+                                    <button
+                                        className={styles.settingsBtnRedesign}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSettingsInstance(instance);
+                                        }}
+                                        title="Settings"
+                                        style={{
+                                            background: 'rgba(255, 255, 255, 0.1)',
+                                            backdropFilter: 'blur(10px)',
+                                            borderRadius: '12px',
+                                            width: 40,
+                                            height: 40,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            cursor: 'pointer',
+                                            color: 'white',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        <Settings size={20} />
+                                    </button>
                                 </div>
                             </div>
-                            <div className={styles.playOverlay}>
-                                <button
-                                    className={styles.actionBtn}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSettingsInstance(instance);
-                                    }}
-                                    title="Settings"
-                                    style={{
-                                        background: 'rgba(255, 255, 255, 0.2)',
-                                        backdropFilter: 'blur(10px)',
-                                        borderRadius: '50%',
-                                        width: 48,
-                                        height: 48,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        border: '1px solid rgba(255,255,255,0.1)',
-                                        cursor: 'pointer',
-                                        color: 'white',
-                                        transition: 'all 0.2s'
-                                    }}
-                                >
-                                    <Settings size={24} />
-                                </button>
-                            </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
 

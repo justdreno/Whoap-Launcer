@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import styles from './ModpackBrowser.module.css';
-import { Search, Download, Upload, ChevronRight, Package, Users, Calendar, Loader2, Layers, ChevronDown, X, ExternalLink } from 'lucide-react';
+import { Search, Download, Upload, ChevronRight, Package, Users, Calendar, Loader2, Layers, ChevronDown, X, ExternalLink, Info } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { InstanceApi } from '../api/instances';
 import { ProcessingModal } from '../components/ProcessingModal';
 import { useToast } from '../context/ToastContext';
 import { Skeleton } from '../components/Skeleton';
 import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 
 interface Modpack {
     project_id: string;
@@ -238,12 +241,12 @@ export const ModpackBrowser: React.FC<ModpackBrowserProps> = () => {
 
                     <div className={styles.packList}>
                         {loading && modpacks.length === 0 ? (
-                            Array.from({ length: 6 }).map((_, i) => (
+                            Array.from({ length: 8 }).map((_, i) => (
                                 <div key={i} className={styles.skeletonCard}>
-                                    <Skeleton width={48} height={48} style={{ borderRadius: 10, flexShrink: 0 }} />
+                                    <Skeleton width={44} height={44} style={{ borderRadius: 10, flexShrink: 0 }} />
                                     <div style={{ flex: 1 }}>
-                                        <Skeleton width="70%" height={16} />
-                                        <Skeleton width="50%" height={12} style={{ marginTop: 6 }} />
+                                        <Skeleton width="80%" height={14} />
+                                        <Skeleton width="40%" height={10} style={{ marginTop: 6 }} />
                                     </div>
                                 </div>
                             ))
@@ -283,43 +286,35 @@ export const ModpackBrowser: React.FC<ModpackBrowserProps> = () => {
                 <div className={styles.rightPanel}>
                     {selectedPack ? (
                         <div className={styles.detailContainer}>
-                            {/* Header with Icon & Title */}
                             <div className={styles.detailHeader}>
                                 <div className={styles.detailIcon}>
                                     {selectedPack.icon_url ? (
                                         <img src={selectedPack.icon_url} alt={selectedPack.title} />
                                     ) : (
-                                        <Layers size={40} />
+                                        <Package size={40} />
                                     )}
                                 </div>
                                 <div className={styles.detailTitleArea}>
                                     <h1>{selectedPack.title}</h1>
-                                    <p className={styles.detailAuthor}>by {packDetails?.team || selectedPack.author}</p>
+                                    <p className={styles.detailAuthor}>by {selectedPack.author}</p>
                                 </div>
                             </div>
 
-                            {/* Stats Row */}
                             <div className={styles.statsRow}>
                                 <div className={styles.statItem}>
-                                    <Download size={18} />
-                                    <div>
-                                        <span className={styles.statValue}>{formatNumber(selectedPack.downloads)}</span>
-                                        <span className={styles.statLabel}>Downloads</span>
-                                    </div>
+                                    <Download size={20} />
+                                    <div className={styles.statValue}>{formatNumber(selectedPack.downloads)}</div>
+                                    <div className={styles.statLabel}>Downloads</div>
                                 </div>
                                 <div className={styles.statItem}>
-                                    <Users size={18} />
-                                    <div>
-                                        <span className={styles.statValue}>{formatNumber(selectedPack.follows)}</span>
-                                        <span className={styles.statLabel}>Followers</span>
-                                    </div>
+                                    <Users size={20} />
+                                    <div className={styles.statValue}>{formatNumber(selectedPack.follows)}</div>
+                                    <div className={styles.statLabel}>Followers</div>
                                 </div>
                                 <div className={styles.statItem}>
-                                    <Calendar size={18} />
-                                    <div>
-                                        <span className={styles.statValue}>{formatDate(selectedPack.date_modified)}</span>
-                                        <span className={styles.statLabel}>Updated</span>
-                                    </div>
+                                    <Calendar size={20} />
+                                    <div className={styles.statValue}>{formatDate(selectedPack.date_modified)}</div>
+                                    <div className={styles.statLabel}>Updated</div>
                                 </div>
                             </div>
 
@@ -388,9 +383,11 @@ export const ModpackBrowser: React.FC<ModpackBrowserProps> = () => {
                                 </button>
                             </div>
 
-                            {/* Description */}
                             <div className={styles.descriptionSection}>
-                                <h3>About this modpack</h3>
+                                <h3>
+                                    <Info size={14} />
+                                    About this modpack
+                                </h3>
                                 <div className={styles.markdownContent}>
                                     {loadingDetails ? (
                                         <div className={styles.descLoading}>
@@ -400,6 +397,8 @@ export const ModpackBrowser: React.FC<ModpackBrowserProps> = () => {
                                         </div>
                                     ) : (
                                         <ReactMarkdown
+                                            rehypePlugins={[rehypeRaw]}
+                                            remarkPlugins={[remarkGfm, remarkBreaks]}
                                             components={{
                                                 a: ({ node, ...props }) => (
                                                     <a
@@ -410,6 +409,9 @@ export const ModpackBrowser: React.FC<ModpackBrowserProps> = () => {
                                                         }}
                                                         style={{ cursor: 'pointer', color: '#ffaa00', textDecoration: 'underline' }}
                                                     />
+                                                ),
+                                                img: ({ node, ...props }) => (
+                                                    <img {...props} style={{ maxWidth: '100%', borderRadius: '12px', margin: '16px 0' }} />
                                                 )
                                             }}
                                         >

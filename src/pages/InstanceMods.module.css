@@ -438,3 +438,22 @@
     letter-spacing: 0.5px;
     margin-top: 8px;
 }
+
+.actionButtons {
+    display: flex;
+    gap: 8px;
+}
+
+.secondaryAdd {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #ccc !important;
+    box-shadow: none !important;
+}
+
+.secondaryAdd:hover {
+    background: rgba(255, 255, 255, 0.12) !important;
+    color: #fff !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    box-shadow: none !important;
+}

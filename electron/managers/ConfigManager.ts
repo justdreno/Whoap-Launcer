@@ -7,6 +7,15 @@ interface JavaPaths {
     [version: string]: string; // e.g., { "8": "path/to/java8", "17": "auto", "21": "path/to/java21" }
 }
 
+interface ProxyConfig {
+    enabled: boolean;
+    host: string;
+    port: number;
+    type: 'http' | 'socks';
+    username?: string;
+    password?: string;
+}
+
 interface AppConfig {
     gamePath: string;
     instancesPath: string;
@@ -18,6 +27,11 @@ interface AppConfig {
     // Launch Behavior
     launchBehavior: 'hide' | 'minimize' | 'keep';
     showConsoleOnLaunch: boolean;
+    // JVM Tuning
+    jvmPreset: 'potato' | 'standard' | 'pro' | 'extreme' | 'custom';
+    jvmArgs: string[];
+    // Proxy (Proxifier style)
+    proxy: ProxyConfig;
 }
 
 const store = new Store<AppConfig>({
@@ -29,7 +43,15 @@ const store = new Store<AppConfig>({
         maxRam: 4096,
         javaPaths: {},
         launchBehavior: 'hide',
-        showConsoleOnLaunch: true
+        showConsoleOnLaunch: true,
+        jvmPreset: 'standard',
+        jvmArgs: [],
+        proxy: {
+            enabled: false,
+            host: '127.0.0.1',
+            port: 8080,
+            type: 'http'
+        }
     }
 });
 
@@ -195,5 +217,17 @@ export class ConfigManager {
 
     static getShowConsoleOnLaunch(): boolean {
         return store.get('showConsoleOnLaunch');
+    }
+
+    static getJvmPreset(): string {
+        return store.get('jvmPreset') || 'standard';
+    }
+
+    static getJvmArgs(): string[] {
+        return store.get('jvmArgs') || [];
+    }
+
+    static getProxy(): ProxyConfig {
+        return store.get('proxy') || { enabled: false, host: '127.0.0.1', port: 8080, type: 'http' };
     }
 }

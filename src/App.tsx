@@ -21,6 +21,8 @@ const Instances = lazy(() => import('./pages/Instances').then(m => ({ default: m
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const ModpackBrowser = lazy(() => import('./pages/ModpackBrowser').then(m => ({ default: m.ModpackBrowser })));
 const ModsManager = lazy(() => import('./pages/ModsManager').then(m => ({ default: m.ModsManager })));
+const ResourcePacksManager = lazy(() => import('./pages/ResourcePacksManager').then(m => ({ default: m.ResourcePacksManager })));
+const ShaderPacksManager = lazy(() => import('./pages/ShaderPacksManager').then(m => ({ default: m.ShaderPacksManager })));
 const News = lazy(() => import('./pages/News').then(m => ({ default: m.News })));
 const Friends = lazy(() => import('./pages/Friends').then(m => ({ default: m.Friends })));
 const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
@@ -194,6 +196,8 @@ function App() {
                             {activeTab === 'settings' && <Settings />}
                             {activeTab === 'modpacks' && <ModpackBrowser isOnline={isOnline} />}
                             {activeTab === 'mods' && <ModsManager user={user} />}
+                            {activeTab === 'resourcepacks' && <ResourcePacksManager user={user} />}
+                            {activeTab === 'shaderpacks' && <ShaderPacksManager user={user} />}
                             {activeTab === 'friends' && <Friends isOnline={isOnline} />}
                             {activeTab === 'news' && <News />}
                             {activeTab === 'admin' && <Admin user={user} />}

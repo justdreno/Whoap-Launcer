@@ -518,13 +518,106 @@ export class LaunchProcess {
                     event.sender.send('java-install-done');
                 }
 
-                // Get RAM settings
-                const minRam = ConfigManager.getMinRam();
-                const maxRam = ConfigManager.getMaxRam();
+                // Get RAM settings and JVM Preset
+                const jvmPreset = ConfigManager.getJvmPreset();
+                const customJvmArgs = ConfigManager.getJvmArgs();
+                let minRam = ConfigManager.getMinRam();
+                let maxRam = ConfigManager.getMaxRam();
+
+                // Preset mappings
+                const presetFlags: Record<string, string[]> = {
+                    potato: [
+                        '-XX:+UseG1GC',
+                        '-XX:G1HeapRegionSize=4M',
+                        '-XX:+UnlockExperimentalVMOptions',
+                        '-XX:+ParallelRefProcEnabled',
+                        '-XX:+AlwaysPreTouch',
+                    ],
+                    standard: [
+                        '-XX:+UseG1GC',
+                        '-XX:+UnlockExperimentalVMOptions',
+                        '-XX:+ParallelRefProcEnabled',
+                        '-XX:MaxGCPauseMillis=200',
+                        '-XX:+AlwaysPreTouch',
+                        '-XX:G1NewSizePercent=30',
+                        '-XX:G1MaxNewSizePercent=40',
+                        '-XX:G1HeapRegionSize=8M',
+                        '-XX:G1ReservePercent=20',
+                        '-XX:G1HeapWastePercent=5',
+                        '-XX:G1MixedGCCountTarget=4',
+                        '-XX:InitiatingHeapOccupancyPercent=15',
+                        '-XX:G1MixedGCLiveThresholdPercent=90',
+                        '-XX:G1RSetUpdatingPauseTimePercent=5',
+                        '-XX:SurvivorRatio=32',
+                        '-XX:+PerfDisableSharedMem',
+                        '-XX:MaxTenuringThreshold=1',
+                    ],
+                    pro: [
+                        // Aikar's Flags (Optimizations for Mods/Server-heavy clients)
+                        '-XX:+UseG1GC',
+                        '-XX:+UnlockExperimentalVMOptions',
+                        '-XX:+AlwaysPreTouch',
+                        '-XX:+ParallelRefProcEnabled',
+                        '-XX:MaxGCPauseMillis=200',
+                        '-XX:G1NewSizePercent=30',
+                        '-XX:G1MaxNewSizePercent=40',
+                        '-XX:G1HeapRegionSize=8M',
+                        '-XX:G1ReservePercent=20',
+                        '-XX:G1HeapWastePercent=5',
+                        '-XX:G1MixedGCCountTarget=4',
+                        '-XX:InitiatingHeapOccupancyPercent=15',
+                        '-XX:G1MixedGCLiveThresholdPercent=90',
+                        '-XX:G1RSetUpdatingPauseTimePercent=5',
+                        '-XX:SurvivorRatio=32',
+                        '-XX:+PerfDisableSharedMem',
+                        '-XX:MaxTenuringThreshold=1',
+                        '-Dusing.aikars.flags=https://mcutils.com',
+                        '-Daikars.new.flags=true'
+                    ],
+                    extreme: [
+                        // Aggressive optimizations for high-RAM systems
+                        '-XX:+UseG1GC',
+                        '-XX:+UnlockExperimentalVMOptions',
+                        '-XX:+AlwaysPreTouch',
+                        '-XX:+ParallelRefProcEnabled',
+                        '-XX:MaxGCPauseMillis=50',
+                        '-XX:G1HeapRegionSize=32M',
+                        '-XX:G1NewSizePercent=40',
+                        '-XX:G1MaxNewSizePercent=50',
+                        '-XX:G1ReservePercent=15',
+                        '-XX:G1HeapWastePercent=5',
+                        '-XX:G1MixedGCCountTarget=4',
+                        '-XX:InitiatingHeapOccupancyPercent=20',
+                        '-XX:G1MixedGCLiveThresholdPercent=90',
+                        '-XX:G1RSetUpdatingPauseTimePercent=5',
+                        '-XX:SurvivorRatio=32',
+                        '-XX:+PerfDisableSharedMem',
+                        '-XX:MaxTenuringThreshold=1',
+                        '-XX:+UseStringDeduplication',
+                    ],
+                    custom: []
+                };
+
+                const proxy = ConfigManager.getProxy();
+                const proxyArgs: string[] = [];
+                if (proxy.enabled && proxy.host && proxy.port) {
+                    if (proxy.type === 'http') {
+                        proxyArgs.push(`-Dhttp.proxyHost=${proxy.host}`);
+                        proxyArgs.push(`-Dhttp.proxyPort=${proxy.port}`);
+                        proxyArgs.push(`-Dhttps.proxyHost=${proxy.host}`);
+                        proxyArgs.push(`-Dhttps.proxyPort=${proxy.port}`);
+                    } else if (proxy.type === 'socks') {
+                        proxyArgs.push(`-DsocksProxyHost=${proxy.host}`);
+                        proxyArgs.push(`-DsocksProxyPort=${proxy.port}`);
+                    }
+                }
 
                 const jvmArgs = [
                     `-Xms${minRam}M`,
                     `-Xmx${maxRam}M`,
+                    ...proxyArgs,
+                    ...(presetFlags[jvmPreset] || []),
+                    ...customJvmArgs,
                     `-Djava.library.path=${nativesDir}`,
                     '-Dminecraft.launcher.brand=whoap',
                     '-Dminecraft.launcher.version=2.0.0',

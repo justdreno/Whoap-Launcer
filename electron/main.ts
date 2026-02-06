@@ -43,6 +43,8 @@ import { AutoUpdateManager } from './managers/AutoUpdateManager';
 import { DiscordManager } from './managers/DiscordManager';
 import { ScreenshotManager } from './managers/ScreenshotManager';
 import { ModPlatformManager } from './managers/ModPlatformManager';
+import { ResourcePackManager } from './managers/ResourcePackManager';
+import { ShaderPackManager } from './managers/ShaderPackManager';
 
 // Paths Configuration
 process.env.DIST = path.join(__dirname, '../dist-react');
@@ -166,6 +168,7 @@ if (!app.requestSingleInstanceLock()) {
 
     app.whenReady().then(async () => {
         console.log("!!! ELECTRON MAIN STARTUP - VERIFICATION LOG !!!");
+
         // Initialize Core Managers
         new ConfigManager();
         new AuthManager();
@@ -175,6 +178,8 @@ if (!app.requestSingleInstanceLock()) {
         new LogWindowManager();
         new ModpackManager();
         new ModsManager();
+        new ResourcePackManager();
+        new ShaderPackManager();
         new NetworkManager();
         new ScreenshotManager();
         CloudManager.getInstance();

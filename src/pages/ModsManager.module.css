@@ -60,20 +60,23 @@
 /* Card Design */
 .card {
     position: relative;
-    height: 160px;
+    height: 180px;
     border-radius: 20px;
     cursor: pointer;
     overflow: hidden;
-    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s;
-    background: #18181b;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+    background: rgba(26, 26, 26, 0.4);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 .cardBg {
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.03), transparent 70%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, transparent 50%, rgba(255, 255, 255, 0.02) 100%);
     pointer-events: none;
+    opacity: 0.5;
 }
 
 .cardContent {
@@ -95,22 +98,23 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 10px;
+    padding: 4px 10px;
     border-radius: 8px;
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 10px;
+    font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.5px;
     border: 1px solid transparent;
 }
 
 .version {
-    font-family: monospace;
+    font-weight: 700;
     color: #666;
-    font-size: 13px;
-    background: rgba(0, 0, 0, 0.3);
-    padding: 4px 8px;
+    font-size: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 3px 8px;
     border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .instanceInfo {
@@ -118,13 +122,14 @@
 }
 
 .instanceName {
-    margin: 0 0 12px 0;
-    font-size: 18px;
-    font-weight: 700;
+    margin: 0 0 16px 0;
+    font-size: 22px;
+    font-weight: 800;
     color: #fff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    letter-spacing: -0.5px;
 }
 
 .actionRow {
@@ -160,9 +165,10 @@
 
 /* Hover States */
 .card:hover {
-    transform: translateY(-4px);
-    border-color: rgba(255, 255, 255, 0.15);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    transform: translateY(-8px) scale(1.02);
+    border-color: rgba(255, 136, 0, 0.3);
+    background: rgba(30, 30, 30, 0.6);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 136, 0, 0.1);
 }
 
 .card:hover .actionRow {
@@ -209,6 +215,37 @@
     font-size: 15px;
     max-width: 300px;
     line-height: 1.5;
+}
+
+/* Loader specific colors - aligned with Instances.module.css */
+.loaderVanilla {
+    background: rgba(128, 128, 128, 0.15);
+    color: #aaa;
+    border: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.loaderFabric {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.loaderForge {
+    background: rgba(251, 146, 60, 0.15);
+    color: #fb923c;
+    border: 1px solid rgba(251, 146, 60, 0.2);
+}
+
+.loaderQuilt {
+    background: rgba(167, 139, 250, 0.15);
+    color: #a78bfa;
+    border: 1px solid rgba(167, 139, 250, 0.2);
+}
+
+.loaderNeoforge {
+    background: rgba(248, 113, 113, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(248, 113, 113, 0.2);
 }
 
 /* Skeleton */

@@ -67,8 +67,18 @@
 
 .titleArea {
     display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.titleWithIcon {
+    display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
+}
+
+.headerIcon {
+    color: #ffaa00;
 }
 
 .titleArea h2 {
