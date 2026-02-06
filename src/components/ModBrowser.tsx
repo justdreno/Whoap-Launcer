@@ -37,6 +37,7 @@ export const ModBrowser: React.FC<ModBrowserProps> = ({ instanceId, version, loa
     const [progress, setProgress] = useState<string>('');
     const [installedMods, setInstalledMods] = useState<Set<string>>(new Set());
     const [loadingVersion, setLoadingVersion] = useState(false);
+    const [dependencyNames, setDependencyNames] = useState<{ [key: string]: string }>({});
     const { showToast } = useToast();
 
     // Load installed mods
@@ -107,10 +108,34 @@ export const ModBrowser: React.FC<ModBrowserProps> = ({ instanceId, version, loa
         setSelectedMod(mod);
         setActiveVersion(null);
         setLoadingVersion(true);
+        setDependencyNames({});
+
         try {
             const versions = await window.ipcRenderer.invoke('mods:get-versions', mod.project_id, { version, loader });
             if (versions.length > 0) {
-                setActiveVersion(versions[0]);
+                const bestVersion = versions[0];
+
+                // Pre-fetch dependency names
+                if (bestVersion.dependencies && bestVersion.dependencies.length > 0) {
+                    const idsToFetch = bestVersion.dependencies
+                        .filter((d: any) => d.project_id)
+                        .map((d: any) => d.project_id);
+
+                    if (idsToFetch.length > 0) {
+                        try {
+                            const projects = await window.ipcRenderer.invoke('mods:get-projects', idsToFetch);
+                            const nameMap: { [key: string]: string } = {};
+                            projects.forEach((p: any) => {
+                                if (p.id && p.title) nameMap[p.id] = p.title;
+                            });
+                            setDependencyNames(nameMap);
+                        } catch (err) {
+                            console.error("Failed to resolve dependency names", err);
+                        }
+                    }
+                }
+
+                setActiveVersion(bestVersion);
             }
         } catch (e) {
             console.error(e);
@@ -118,6 +143,8 @@ export const ModBrowser: React.FC<ModBrowserProps> = ({ instanceId, version, loa
             setLoadingVersion(false);
         }
     };
+
+    // Dependencies resolving logic moved to handleSelectMod
 
     const handleInstall = async () => {
         if (!activeVersion) return;
@@ -295,7 +322,7 @@ export const ModBrowser: React.FC<ModBrowserProps> = ({ instanceId, version, loa
                                                         {d.dependency_type === 'required' ? 'Required' : 'Optional'}
                                                     </span>
                                                     <span className={styles.depId}>
-                                                        {d.project_id ? `Project: ${d.project_id.substring(0, 8)}...` : 'Unknown'}
+                                                        {d.project_id ? (dependencyNames[d.project_id] || `Project: ${d.project_id.substring(0, 8)}...`) : 'Unknown'}
                                                     </span>
                                                     <span className={styles.depAuto}>Auto-install</span>
                                                 </div>

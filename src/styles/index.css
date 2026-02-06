@@ -57,6 +57,8 @@ body {
     /* 16px rounded corners */
     /* Optional: Add a subtle border to define the window edges against dark backgrounds */
     border: 1px solid rgba(255, 255, 255, 0.08);
+    /* Ensure position: fixed elements are clipped by this container */
+    transform: translateZ(0);
 }
 
 /* Scrollbar */

@@ -11,7 +11,7 @@ const API_BASE = 'https://api.modrinth.com/v2';
 const USER_AGENT = 'WhoapLauncher/2.3.1 (contact@whoap.gg)'; // Replace with real contact if available
 
 interface ModrinthProject {
-    project_id: string;
+    id: string; // Correct field name from API
     title: string;
     description: string;
     icon_url?: string;
@@ -76,6 +76,10 @@ export class ModPlatformManager {
             return await this.getProjectVersions(projectId, filters);
         });
 
+        ipcMain.handle('mods:get-projects', async (_, projectIds: string[]) => {
+            return await this.getProjects(projectIds);
+        });
+
         ipcMain.handle('mods:install', async (event, instanceId: string, versionId: string) => {
             try {
                 const results = await this.smartInstall(instanceId, versionId, (status) => {
@@ -127,6 +131,22 @@ export class ModPlatformManager {
             return response.data as ModrinthVersion[];
         } catch (error) {
             console.error("Failed to fetch versions:", error);
+            return [];
+        }
+    }
+
+    private async getProjects(projectIds: string[]) {
+        if (!projectIds || projectIds.length === 0) return [];
+        try {
+            const response = await axios.get(`${API_BASE}/projects`, {
+                params: {
+                    ids: JSON.stringify(projectIds)
+                },
+                headers: { 'User-Agent': USER_AGENT }
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Failed to fetch projects:", error);
             return [];
         }
     }
