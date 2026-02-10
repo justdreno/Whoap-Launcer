@@ -7,24 +7,30 @@ import { InstanceMods } from './InstanceMods';
 import { Skeleton } from '../components/Skeleton';
 
 interface ModsManagerProps {
-    user: any;
+    user?: any;
+    hideHeader?: boolean;
+    instanceId?: string | null;
 }
 
-export const ModsManager: React.FC<ModsManagerProps> = () => {
+export const ModsManager: React.FC<ModsManagerProps> = ({ hideHeader, instanceId }) => {
     const [instances, setInstances] = useState<Instance[]>([]);
-    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
 
+    // Use passed instanceId if available, otherwise local state
+    const effectiveSelectedId = instanceId || localSelectedId;
+
     useEffect(() => {
-        loadInstances();
-    }, []);
+        if (!instanceId) {
+            loadInstances();
+        }
+    }, [instanceId]);
 
     const loadInstances = async () => {
         setLoading(true);
         try {
             const list = await InstanceApi.list();
-            // Filter only moddable instances (exclude generic types if needed, currently allowing all known loaders)
             const moddable = list.filter(i =>
                 ['fabric', 'forge', 'neoforge', 'quilt'].includes(i.loader?.toLowerCase())
             );
@@ -36,13 +42,23 @@ export const ModsManager: React.FC<ModsManagerProps> = () => {
         }
     };
 
-    if (selectedId) {
+    if (effectiveSelectedId) {
         return (
             <InstanceMods
-                instanceId={selectedId}
+                instanceId={effectiveSelectedId}
+                hideBackButton={!!instanceId}
+                hideHeader={hideHeader}
                 onBack={() => {
-                    setSelectedId(null);
-                    loadInstances();
+                    if (instanceId) {
+                        // If controlled by parent, we can't really "go back" to list, 
+                        // effectively this button should probably be hidden or specific behavior
+                        // For now do nothing or maybe parent handles it?
+                        // Given the improved UX, maybe we hide the back button in InstanceMods if controlled?
+                        // We'll leave it for now, it just re-renders with same ID.
+                    } else {
+                        setLocalSelectedId(null);
+                        loadInstances();
+                    }
                 }}
             />
         );
@@ -57,10 +73,12 @@ export const ModsManager: React.FC<ModsManagerProps> = () => {
     return (
         <div className={styles.container}>
             <div className={styles.topSection}>
-                <PageHeader
-                    title="Mods"
-                    description="Manage mods for your instances."
-                />
+                {!hideHeader && (
+                    <PageHeader
+                        title="Mods"
+                        description="Manage mods for your instances."
+                    />
+                )}
 
                 <div className={styles.searchWrapper}>
                     <Search size={18} className={styles.searchIcon} />
@@ -90,7 +108,7 @@ export const ModsManager: React.FC<ModsManagerProps> = () => {
                     </div>
                 ) : (
                     filtered.map(inst => (
-                        <div key={inst.id} className={styles.card} onClick={() => setSelectedId(inst.id)}>
+                        <div key={inst.id} className={styles.card} onClick={() => setLocalSelectedId(inst.id)}>
                             <div className={styles.cardBg} />
 
                             <div className={styles.cardContent}>

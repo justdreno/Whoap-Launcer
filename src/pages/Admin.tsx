@@ -112,8 +112,8 @@ export const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
     };
 
     const loadChangelogs = async () => {
-        const data = await ContentManager.fetchChangelogs();
-        setChangelogs(data);
+        const result = await ContentManager.fetchChangelogs();
+        setChangelogs(result.items);
     };
 
     const loadSystemConfig = async () => {

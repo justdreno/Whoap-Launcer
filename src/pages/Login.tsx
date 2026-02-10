@@ -190,12 +190,45 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onOfflineLogin }) 
             if (account.type === 'whoap' && account.token && navigator.onLine) {
                 try {
                     const { CloudManager } = await import('../utils/CloudManager');
-                    await CloudManager.syncSession(account.token, account.refreshToken);
+                    const syncResult = await CloudManager.syncSession(account.token, account.refreshToken);
+
+                    // If session was refreshed, update stored tokens
+                    if (syncResult.success && syncResult.session) {
+                        const updatedAccount: StoredAccount = {
+                            ...account,
+                            token: syncResult.session.access_token,
+                            refreshToken: syncResult.session.refresh_token
+                        };
+                        AccountManager.addAccount(updatedAccount);
+
+                        // Update main process session store
+                        await window.ipcRenderer.invoke('auth:update-session', {
+                            token: syncResult.session.access_token,
+                            refreshToken: syncResult.session.refresh_token
+                        });
+
+                        // Use refreshed tokens for login success - AFTER session is ready
+                        onLoginSuccess({
+                            name: account.name,
+                            uuid: account.uuid,
+                            token: syncResult.session.access_token,
+                            type: account.type,
+                            preferredSkin: account.preferredSkin
+                        });
+                        setIsLoggingIn(false);
+                        return; // Exit early since we already called onLoginSuccess
+                    } else if (!syncResult.success) {
+                        console.warn("[Login] Session sync failed, account may have limited functionality");
+                    }
                 } catch (e) {
-                    console.warn("[Login] Offline, skipping session sync");
+                    console.warn("[Login] Session sync error:", e);
                 }
             }
 
+            // Only reach here if: 
+            // - Not a whoap account
+            // - Offline mode
+            // - Session sync failed but we still want to proceed
             onLoginSuccess({
                 name: account.name,
                 uuid: account.uuid,

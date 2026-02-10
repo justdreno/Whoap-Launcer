@@ -33,7 +33,7 @@ export const Friends: React.FC<FriendsProps> = ({ isOnline = true }) => {
             loadRequests();
             if (activeTab === 'shared') loadSharedInstances();
         }
-    }, [activeTab]);
+    }, [activeTab, user?.uuid]);
 
     const loadSharedInstances = async () => {
         if (!user) return;

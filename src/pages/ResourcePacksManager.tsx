@@ -7,24 +7,29 @@ import { InstanceResourcePacks } from './';
 import { Skeleton } from '../components/Skeleton';
 
 interface ResourcePacksManagerProps {
-    user: any;
+    user?: any;
+    hideHeader?: boolean;
+    instanceId?: string | null;
 }
 
-export const ResourcePacksManager: React.FC<ResourcePacksManagerProps> = () => {
+export const ResourcePacksManager: React.FC<ResourcePacksManagerProps> = ({ hideHeader, instanceId }) => {
     const [instances, setInstances] = useState<Instance[]>([]);
-    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
 
+    const effectiveSelectedId = instanceId || localSelectedId;
+
     useEffect(() => {
-        loadInstances();
-    }, []);
+        if (!instanceId) {
+            loadInstances();
+        }
+    }, [instanceId]);
 
     const loadInstances = async () => {
         setLoading(true);
         try {
             const list = await InstanceApi.list();
-            // All instances support resource packs
             setInstances(list);
         } catch (e) {
             console.error(e);
@@ -33,13 +38,17 @@ export const ResourcePacksManager: React.FC<ResourcePacksManagerProps> = () => {
         }
     };
 
-    if (selectedId) {
+    if (effectiveSelectedId) {
         return (
             <InstanceResourcePacks
-                instanceId={selectedId}
+                instanceId={effectiveSelectedId}
+                hideBackButton={!!instanceId}
+                hideHeader={hideHeader}
                 onBack={() => {
-                    setSelectedId(null);
-                    loadInstances();
+                    if (!instanceId) {
+                        setLocalSelectedId(null);
+                        loadInstances();
+                    }
                 }}
             />
         );
@@ -54,10 +63,12 @@ export const ResourcePacksManager: React.FC<ResourcePacksManagerProps> = () => {
     return (
         <div className={styles.container}>
             <div className={styles.topSection}>
-                <PageHeader
-                    title="Resource Packs"
-                    description="Manage texture packs for your instances."
-                />
+                {!hideHeader && (
+                    <PageHeader
+                        title="Resource Packs"
+                        description="Manage texture packs for your instances."
+                    />
+                )}
 
                 <div className={styles.searchWrapper}>
                     <Search size={18} className={styles.searchIcon} />
@@ -87,7 +98,7 @@ export const ResourcePacksManager: React.FC<ResourcePacksManagerProps> = () => {
                     </div>
                 ) : (
                     filtered.map(inst => (
-                        <div key={inst.id} className={styles.card} onClick={() => setSelectedId(inst.id)}>
+                        <div key={inst.id} className={styles.card} onClick={() => setLocalSelectedId(inst.id)}>
                             <div className={styles.cardBg} />
 
                             <div className={styles.cardContent}>

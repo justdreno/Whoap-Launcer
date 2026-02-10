@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styles from './ModBrowser.module.css';
-import { Search, Download, Check, AlertTriangle, Package, CheckCircle, X, Sparkles, Layers } from 'lucide-react';
+import { Search, Download, Check, AlertTriangle, Package, CheckCircle, X, Sparkles, Layers, WifiOff } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import ReactMarkdown from 'react-markdown';
 
@@ -41,6 +41,7 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ instanceId, vers
     const [installedItems, setInstalledItems] = useState<Set<string>>(new Set());
     const [loadingVersion, setLoadingVersion] = useState(false);
     const [dependencyNames, setDependencyNames] = useState<{ [key: string]: string }>({});
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
     const { showToast } = useToast();
 
     const config = {
@@ -48,6 +49,18 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ instanceId, vers
         resourcepack: { title: 'Resource Pack Browser', icon: Layers, ipcPrefix: 'resourcepacks' },
         shader: { title: 'Shader Browser', icon: Sparkles, ipcPrefix: 'shaderpacks' }
     }[type];
+
+    // Internet check
+    useEffect(() => {
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
 
     // Load installed items
     useEffect(() => {
@@ -201,6 +214,22 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ instanceId, vers
                 </div>
 
                 <div className={styles.body}>
+                    {!isOnline && (
+                        <div style={{
+                            position: 'absolute', inset: 0, zIndex: 50,
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', borderRadius: 12, gap: 12
+                        }}>
+                            <WifiOff size={48} color="#ff8800" strokeWidth={1.5} />
+                            <h3 style={{ color: '#fff', margin: 0, fontWeight: 600 }}>No Internet Connection</h3>
+                            <p style={{ color: '#71717a', fontSize: 14, margin: 0 }}>Connect to the internet to browse content</p>
+                            <button onClick={onClose} style={{
+                                marginTop: 8, padding: '8px 20px', background: 'rgba(255,255,255,0.1)',
+                                border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
+                                color: '#fff', cursor: 'pointer', fontSize: 13
+                            }}>Close</button>
+                        </div>
+                    )}
                     {/* Left Panel - Search & List */}
                     <div className={styles.leftPanel}>
                         <div className={styles.searchWrapper}>

@@ -52,6 +52,7 @@
     "rehype-raw": "^7.0.0",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
+    "skinview3d": "^3.4.1",
     "uuid": "^13.0.0"
   }
 }

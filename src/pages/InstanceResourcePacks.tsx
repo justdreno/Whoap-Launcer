@@ -9,6 +9,8 @@ import { ContentBrowser } from '../components/ContentBrowser';
 interface InstanceResourcePacksProps {
     instanceId: string;
     onBack: () => void;
+    hideBackButton?: boolean;
+    hideHeader?: boolean;
 }
 
 interface InstalledItem {
@@ -18,7 +20,7 @@ interface InstalledItem {
     isEnabled: boolean;
 }
 
-export const InstanceResourcePacks: React.FC<InstanceResourcePacksProps> = ({ instanceId, onBack }) => {
+export const InstanceResourcePacks: React.FC<InstanceResourcePacksProps> = ({ instanceId, onBack, hideBackButton, hideHeader }) => {
     const [installedItems, setInstalledItems] = useState<InstalledItem[]>([]);
     const [installedSearchQuery, setInstalledSearchQuery] = useState('');
     const [loading, setLoading] = useState(false);
@@ -124,20 +126,24 @@ export const InstanceResourcePacks: React.FC<InstanceResourcePacksProps> = ({ in
 
     return (
         <div className={styles.container}>
-            <div className={styles.header}>
-                <button className={styles.backBtn} onClick={onBack} title="Back">
-                    <ChevronLeft size={24} />
-                </button>
-                <div className={styles.titleArea}>
-                    <h1 className={styles.pageTitle}>{config.title}</h1>
-                    {instanceMeta && (
-                        <div className={styles.instanceBadge}>
-                            <span>Minecraft {instanceMeta.version}</span>
-                            <div className={styles.loaderTag}>{instanceMeta.loader}</div>
-                        </div>
+            {!hideHeader && (
+                <div className={styles.header}>
+                    {!hideBackButton && (
+                        <button className={styles.backBtn} onClick={onBack} title="Back">
+                            <ChevronLeft size={24} />
+                        </button>
                     )}
+                    <div className={styles.titleArea}>
+                        <h1 className={styles.pageTitle}>{config.title}</h1>
+                        {instanceMeta && (
+                            <div className={styles.instanceBadge}>
+                                <span>Minecraft {instanceMeta.version}</span>
+                                <div className={styles.loaderTag}>{instanceMeta.loader}</div>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div className={styles.searchArea}>
                 <input

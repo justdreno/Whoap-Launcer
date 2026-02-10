@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styles from './ModpackBrowser.module.css';
-import { Search, Download, Upload, ChevronRight, Package, Users, Calendar, Loader2, Layers, ChevronDown, X, ExternalLink, Info } from 'lucide-react';
+import { Search, Download, Upload, ChevronRight, Package, Users, Calendar, Loader2, Layers, ChevronDown, X, ExternalLink, Info, WifiOff } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { InstanceApi } from '../api/instances';
 import { ProcessingModal } from '../components/ProcessingModal';
@@ -39,11 +39,19 @@ interface ModpackVersion {
 
 interface ModpackBrowserProps {
     isOnline?: boolean;
+    hideHeader?: boolean;
 }
 
-export const ModpackBrowser: React.FC<ModpackBrowserProps> = () => {
+export const ModpackBrowser: React.FC<ModpackBrowserProps> = ({ hideHeader }) => {
     const [query, setQuery] = useState('');
     const [modpacks, setModpacks] = useState<Modpack[]>([]);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    // ... (existing state code omitted for brevity as it's not changing, but using replace_file_content I need to be careful with context. 
+    // Actually, since I'm targeting the top part, I'll just change the props interface and the render method part)
+
+    // Wait, replace_file_content requires exact match. I should probably use multi_replace.
+    // Let's stick to replace_file_content but targeting specific blocks.
     const [loading, setLoading] = useState(true);
 
     // Selection State
@@ -63,10 +71,22 @@ export const ModpackBrowser: React.FC<ModpackBrowserProps> = () => {
 
     const { showToast } = useToast();
 
+    // Internet check
+    useEffect(() => {
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+
     // Initial load
     useEffect(() => {
-        loadFeatured();
-    }, []);
+        if (isOnline) loadFeatured();
+    }, [isOnline]);
 
     // Progress listener
     useEffect(() => {
@@ -216,10 +236,12 @@ export const ModpackBrowser: React.FC<ModpackBrowserProps> = () => {
     return (
         <div className={styles.container}>
             <div className={styles.header}>
-                <PageHeader
-                    title="Modpacks"
-                    description="Browse and install modpacks from Modrinth."
-                />
+                {!hideHeader && (
+                    <PageHeader
+                        title="Modpacks"
+                        description="Browse and install modpacks from Modrinth."
+                    />
+                )}
                 <button className={styles.importBtn} onClick={handleImportFile}>
                     <Upload size={18} />
                     <span>Import File</span>
@@ -227,6 +249,17 @@ export const ModpackBrowser: React.FC<ModpackBrowserProps> = () => {
             </div>
 
             <div className={styles.content}>
+                {!isOnline && (
+                    <div style={{
+                        position: 'absolute', inset: 0, zIndex: 50,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', borderRadius: 16, gap: 12
+                    }}>
+                        <WifiOff size={48} color="#ff8800" strokeWidth={1.5} />
+                        <h3 style={{ color: '#fff', margin: 0, fontWeight: 600 }}>No Internet Connection</h3>
+                        <p style={{ color: '#71717a', fontSize: 14, margin: 0 }}>Connect to the internet to browse modpacks</p>
+                    </div>
+                )}
                 {/* Left Panel: Search & List */}
                 <div className={styles.leftPanel}>
                     <div className={styles.searchWrapper}>
@@ -297,7 +330,73 @@ export const ModpackBrowser: React.FC<ModpackBrowserProps> = () => {
                                 <div className={styles.detailTitleArea}>
                                     <h1>{selectedPack.title}</h1>
                                     <p className={styles.detailAuthor}>by {selectedPack.author}</p>
+
+                                    {/* Install Controls in Header */}
+                                    <div className={styles.headerControls}>
+                                        <div className={styles.versionSelector} onClick={(e) => { e.stopPropagation(); setShowVersionDropdown(!showVersionDropdown); }}>
+                                            <span>
+                                                {loadingDetails ? 'Loading...' : selectedVersion ? `${selectedVersion.version_number} (${selectedVersion.game_versions[0]})` : 'Select Version'}
+                                            </span>
+                                            <ChevronDown size={16} />
+
+                                            {showVersionDropdown && versions.length > 0 && (
+                                                <div
+                                                    className={styles.versionDropdown}
+                                                    onClick={e => e.stopPropagation()}
+                                                    onWheel={(e) => e.stopPropagation()}
+                                                >
+                                                    <div className={styles.versionSearchContainer}>
+                                                        <Search size={14} className={styles.versionSearchIcon} />
+                                                        <input
+                                                            autoFocus
+                                                            className={styles.versionSearchInput}
+                                                            placeholder="Search version..."
+                                                            onClick={e => e.stopPropagation()}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value.toLowerCase();
+                                                                const items = document.querySelectorAll(`.${styles.versionOption}`);
+                                                                items.forEach((item: any) => {
+                                                                    const text = item.innerText.toLowerCase();
+                                                                    item.style.display = text.includes(val) ? 'flex' : 'none';
+                                                                });
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div className={styles.versionScrollArea}>
+                                                        {versions.map(ver => (
+                                                            <div
+                                                                key={ver.id}
+                                                                className={`${styles.versionOption} ${selectedVersion?.id === ver.id ? styles.activeOption : ''}`}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedVersion(ver);
+                                                                    setShowVersionDropdown(false);
+                                                                }}
+                                                            >
+                                                                <span className={styles.optionVersion}>{ver.version_number}</span>
+                                                                <span className={styles.optionMeta}>{ver.game_versions[0]} • {ver.loaders[0]}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <button
+                                            className={styles.installButton}
+                                            disabled={!selectedVersion || installing}
+                                            onClick={handleInstall}
+                                        >
+                                            {installing ? (
+                                                <Loader2 className={styles.spinner} size={18} />
+                                            ) : (
+                                                <Download size={18} />
+                                            )}
+                                            <span>{installing ? 'Installing...' : 'Install'}</span>
+                                        </button>
+                                    </div>
                                 </div>
+
                             </div>
 
                             <div className={styles.statsRow}>
@@ -319,69 +418,7 @@ export const ModpackBrowser: React.FC<ModpackBrowserProps> = () => {
                             </div>
 
                             {/* Install Section */}
-                            <div className={styles.installSection}>
-                                <div className={styles.versionSelector} onClick={(e) => { e.stopPropagation(); setShowVersionDropdown(!showVersionDropdown); }}>
-                                    <span>
-                                        {loadingDetails ? 'Loading...' : selectedVersion ? `${selectedVersion.version_number} (${selectedVersion.game_versions[0]})` : 'Select Version'}
-                                    </span>
-                                    <ChevronDown size={16} />
 
-                                    {showVersionDropdown && versions.length > 0 && (
-                                        <div
-                                            className={styles.versionDropdown}
-                                            onClick={e => e.stopPropagation()}
-                                            onWheel={(e) => e.stopPropagation()}
-                                        >
-                                            <div className={styles.versionSearchContainer}>
-                                                <Search size={14} className={styles.versionSearchIcon} />
-                                                <input
-                                                    autoFocus
-                                                    className={styles.versionSearchInput}
-                                                    placeholder="Search version..."
-                                                    onClick={e => e.stopPropagation()}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value.toLowerCase();
-                                                        const items = document.querySelectorAll(`.${styles.versionOption}`);
-                                                        items.forEach((item: any) => {
-                                                            const text = item.innerText.toLowerCase();
-                                                            item.style.display = text.includes(val) ? 'flex' : 'none';
-                                                        });
-                                                    }}
-                                                />
-                                            </div>
-                                            <div className={styles.versionScrollArea}>
-                                                {versions.map(ver => (
-                                                    <div
-                                                        key={ver.id}
-                                                        className={`${styles.versionOption} ${selectedVersion?.id === ver.id ? styles.activeOption : ''}`}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setSelectedVersion(ver);
-                                                            setShowVersionDropdown(false);
-                                                        }}
-                                                    >
-                                                        <span className={styles.optionVersion}>{ver.version_number}</span>
-                                                        <span className={styles.optionMeta}>{ver.game_versions[0]} • {ver.loaders[0]}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <button
-                                    className={styles.installButton}
-                                    disabled={!selectedVersion || installing}
-                                    onClick={handleInstall}
-                                >
-                                    {installing ? (
-                                        <Loader2 className={styles.spinner} size={18} />
-                                    ) : (
-                                        <Download size={18} />
-                                    )}
-                                    <span>{installing ? 'Installing...' : 'Install'}</span>
-                                </button>
-                            </div>
 
                             <div className={styles.descriptionSection}>
                                 <h3>
@@ -421,11 +458,43 @@ export const ModpackBrowser: React.FC<ModpackBrowserProps> = () => {
                                 </div>
                             </div>
                         </div>
+                    ) : loading ? (
+                        <div className={styles.detailsSkeleton}>
+                            <div className={styles.skeletonHeader}>
+                                <div className={styles.skeletonIcon} />
+                                <div className={styles.skeletonTitleBlock}>
+                                    <div className={styles.skeletonLine} />
+                                    <div className={styles.skeletonLineShort} />
+                                </div>
+                            </div>
+                            <div className={styles.statsRow}>
+                                <div className={styles.statItem} style={{ height: 80, padding: 0 }} />
+                                <div className={styles.statItem} style={{ height: 80, padding: 0 }} />
+                                <div className={styles.statItem} style={{ height: 80, padding: 0 }} />
+                            </div>
+                            <div className={styles.skeletonLine} style={{ width: '100%', height: 60, marginBottom: 40 }} />
+                            <div className={styles.skeletonContentBlock}>
+                                <div className={styles.skeletonLine} style={{ width: '100%', height: 20 }} />
+                                <div className={styles.skeletonLine} style={{ width: '92%', height: 20 }} />
+                                <div className={styles.skeletonLine} style={{ width: '96%', height: 20 }} />
+                                <div className={styles.skeletonLine} style={{ width: '85%', height: 20 }} />
+                                <div className={styles.skeletonLine} style={{ width: '90%', height: 20 }} />
+                            </div>
+                        </div>
                     ) : (
-                        <div className={styles.noSelection}>
-                            <Package size={64} strokeWidth={1} />
-                            <h2>Select a Modpack</h2>
-                            <p>Choose a modpack from the list to view details.</p>
+                        <div className={styles.landingState}>
+                            <div className={styles.landingBgIcon}>
+                                <Package />
+                            </div>
+                            <div className={styles.landingContent}>
+                                <div className={styles.landingIconCircle}>
+                                    <Package size={40} strokeWidth={1.5} />
+                                </div>
+                                <h2 className={styles.landingTitle}>Select a Modpack</h2>
+                                <p className={styles.landingText}>
+                                    Browse the collection on the left and select a modpack to view its details, versions, and installation options.
+                                </p>
+                            </div>
                         </div>
                     )}
                 </div>

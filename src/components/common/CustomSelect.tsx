@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import styles from './CustomSelect.module.css';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -13,16 +14,36 @@ interface CustomSelectProps {
     options: Option[];
     placeholder?: string;
     disabled?: boolean;
+    searchable?: boolean;
 }
 
-export const CustomSelect: React.FC<CustomSelectProps & { searchable?: boolean }> = ({ value, onChange, options, placeholder = "Select...", disabled = false, searchable = true }) => {
+export const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, placeholder = "Select...", disabled = false, searchable = true }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
     const containerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
+    const updatePosition = useCallback(() => {
+        if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            setPosition({
+                top: rect.bottom + window.scrollY + 5,
+                left: rect.left + window.scrollX,
+                width: rect.width
+            });
+        }
+    }, []);
+
     const toggleOpen = () => {
-        if (!disabled) setIsOpen(!isOpen);
+        if (!disabled) {
+            if (!isOpen) {
+                updatePosition();
+                setIsOpen(true);
+            } else {
+                setIsOpen(false);
+            }
+        }
     };
 
     const handleSelect = (optionValue: string) => {
@@ -34,13 +55,32 @@ export const CustomSelect: React.FC<CustomSelectProps & { searchable?: boolean }
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
+                // Check if click is inside the portal dropdown
+                const dropdown = document.getElementById('custom-select-dropdown');
+                if (dropdown && !dropdown.contains(event.target as Node)) {
+                    setIsOpen(false);
+                }
             }
         };
 
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+        const handleScroll = () => {
+            if (isOpen) updatePosition(); // Optional: or setIsOpen(false)
+        };
+
+        const handleResize = () => {
+            if (isOpen) setIsOpen(false);
+        }
+
+        window.addEventListener('mousedown', handleClickOutside);
+        window.addEventListener('scroll', handleScroll, true); // Capture phase for all scrolling elements
+        window.addEventListener('resize', handleResize);
+
+        return () => {
+            window.removeEventListener('mousedown', handleClickOutside);
+            window.removeEventListener('scroll', handleScroll, true);
+            window.removeEventListener('resize', handleResize);
+        };
+    }, [isOpen, updatePosition]);
 
     useEffect(() => {
         if (isOpen && searchable && inputRef.current) {
@@ -57,6 +97,50 @@ export const CustomSelect: React.FC<CustomSelectProps & { searchable?: boolean }
         !searchQuery || opt.label.toLowerCase().includes(searchQuery.toLowerCase()) || opt.value.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const dropdownContent = (
+        <div
+            id="custom-select-dropdown"
+            className={styles.dropdown}
+            style={{
+                position: 'fixed',
+                top: position.top - window.scrollY, // Adjust because we want fixed relative to viewport
+                left: position.left - window.scrollX,
+                width: position.width,
+                zIndex: 9999
+            }}
+            onMouseDown={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+        >
+            {searchable && (
+                <input
+                    ref={inputRef}
+                    type="text"
+                    className={styles.searchInput}
+                    placeholder="Search..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                />
+            )}
+            <div className={styles.optionsList}>
+                {filteredOptions.length > 0 ? (
+                    filteredOptions.map(option => (
+                        <div
+                            key={option.value}
+                            className={`${styles.option} ${option.value === value ? styles.selected : ''}`}
+                            onClick={() => handleSelect(option.value)}
+                        >
+                            {option.label}
+                        </div>
+                    ))
+                ) : (
+                    <div className={styles.option} style={{ cursor: 'default', color: '#666' }}>
+                        No results found
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
     return (
         <div className={styles.container} ref={containerRef}>
             <div className={`${styles.trigger} ${isOpen ? styles.open : ''} ${disabled ? styles.disabled : ''}`} onClick={toggleOpen}>
@@ -66,36 +150,7 @@ export const CustomSelect: React.FC<CustomSelectProps & { searchable?: boolean }
                 </span>
             </div>
 
-            {isOpen && (
-                <div className={styles.dropdown}>
-                    {searchable && (
-                        <input
-                            ref={inputRef}
-                            type="text"
-                            className={styles.searchInput}
-                            placeholder="Search..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                        />
-                    )}
-                    {filteredOptions.length > 0 ? (
-                        filteredOptions.map(option => (
-                            <div
-                                key={option.value}
-                                className={`${styles.option} ${option.value === value ? styles.selected : ''}`}
-                                onClick={() => handleSelect(option.value)}
-                            >
-                                {option.label}
-                            </div>
-                        ))
-                    ) : (
-                        <div className={styles.option} style={{ cursor: 'default', color: '#666' }}>
-                            No results found
-                        </div>
-                    )}
-                </div>
-            )}
+            {isOpen && createPortal(dropdownContent, document.body)}
         </div>
     );
 };

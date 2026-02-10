@@ -126,14 +126,36 @@ export const CloudManager = {
 
     // --- Friends System ---
 
-    async syncSession(token: string, refreshToken?: string) {
-        console.log("[CloudManager] Syncing Supabase session...");
+    async syncSession(token: string, refreshToken?: string): Promise<{ success: boolean; session?: any }> {
+        // 1. Attempt to restore session
         const { error } = await supabase.auth.setSession({
             access_token: token,
             refresh_token: refreshToken || ''
         });
-        if (error) console.error("[CloudManager] Session sync failed:", error);
-        else console.log("[CloudManager] Session synced successfully");
+
+        // 2. Verify the session is actually active
+        const { data: { session: verifiedSession }, error: verificationError } = await supabase.auth.getSession();
+
+        // If setSession failed OR verification says no/invalid session
+        if (error || verificationError || !verifiedSession) {
+            console.warn("[CloudManager] Session restore failed or invalid. Attempting refresh...", error || verificationError);
+
+            if (refreshToken) {
+                const { data, error: refreshError } = await supabase.auth.refreshSession({
+                    refresh_token: refreshToken
+                });
+
+                if (!refreshError && data.session) {
+                    console.log("[CloudManager] Session refreshed successfully via fallback");
+                    return { success: true, session: data.session };
+                }
+                console.error("[CloudManager] Session refresh failed:", refreshError);
+            }
+            return { success: false };
+        }
+
+        console.log("[CloudManager] Session restored and verified successfully");
+        return { success: true };
     },
 
     searchUsers: async (query: string) => {
@@ -229,6 +251,13 @@ export const CloudManager = {
     },
 
     getFriends: async (userId: string) => {
+        // Log to terminal via IPC
+        const log = (msg: string) => window.ipcRenderer?.send('log-to-terminal', msg);
+
+        log(`!!! CloudManager.getFriends called with userId: ${userId}`);
+        const { data: sessionData } = await supabase.auth.getSession();
+        log(`!!! CloudManager Session User: ${sessionData.session?.user?.id}`);
+
         const { data, error } = await supabase
             .from('friendships')
             .select(`
@@ -239,9 +268,10 @@ export const CloudManager = {
             .eq('status', 'accepted');
 
         if (error) {
-            console.error("Get Friends Error:", error);
+            log(`!!! CloudManager Get Friends Error: ${JSON.stringify(error)}`);
             return [];
         }
+        log(`!!! CloudManager Friends Data Count: ${data?.length}`);
 
         return (data || []).map((f: any) => {
             const requester = Array.isArray(f.requester) ? f.requester[0] : f.requester;

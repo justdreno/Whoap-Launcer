@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import styles from './News.module.css';
 import { ContentManager, NewsItem, ChangelogItem } from '../utils/ContentManager';
-import { Newspaper, GitBranch } from 'lucide-react';
+import { Newspaper, GitBranch, WifiOff } from 'lucide-react';
 import { Skeleton } from '../components/Skeleton';
 import { NewsCard } from '../components/NewsCard';
 import ReactMarkdown from 'react-markdown';
@@ -13,16 +13,18 @@ export const News: React.FC = () => {
     const [changelogs, setChangelogs] = useState<ChangelogItem[]>([]);
     const [activeTab, setActiveTab] = useState<'news' | 'updates'>('news');
     const [loading, setLoading] = useState(true);
+    const [fromCache, setFromCache] = useState(false);
 
     useEffect(() => {
         const loadContent = async () => {
             try {
-                const [newsData, changelogData] = await Promise.all([
+                const [newsResult, changelogResult] = await Promise.all([
                     ContentManager.fetchNews(),
                     ContentManager.fetchChangelogs()
                 ]);
-                setNews(newsData);
-                setChangelogs(changelogData);
+                setNews(newsResult.items);
+                setChangelogs(changelogResult.items);
+                setFromCache(newsResult.fromCache || changelogResult.fromCache);
             } catch (e) {
                 console.error("Failed to load content", e);
             } finally {
@@ -50,6 +52,13 @@ export const News: React.FC = () => {
                     title="News & Updates"
                     description="Stay up to date with the latest launcher and game news."
                 />
+
+                {fromCache && (
+                    <div className={styles.cacheBanner}>
+                        <WifiOff size={14} />
+                        <span>Showing cached content — connect to the internet for the latest updates</span>
+                    </div>
+                )}
 
                 {/* Tab Switcher */}
                 <div className={styles.tabs}>

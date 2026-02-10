@@ -285,8 +285,11 @@
     /* Pop out from the bottom slightly */
     height: 105%;
     /* Much larger skin */
-    width: 260px;
+    width: 320px;
     /* Wider clickable area */
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
     z-index: 1000 !important;
     /* Above everything else in the hero */
     cursor: pointer;
@@ -332,6 +335,7 @@
 }
 
 .heroImage {
+    width: 100%;
     height: 100%;
     object-fit: contain;
     pointer-events: none;

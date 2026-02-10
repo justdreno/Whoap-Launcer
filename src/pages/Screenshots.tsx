@@ -13,11 +13,13 @@ import styles from './Screenshots.module.css';
 
 interface ScreenshotsProps {
     user?: any;
+    hideHeader?: boolean;
 }
 
-export const Screenshots: React.FC<ScreenshotsProps> = ({ user }) => {
+export const Screenshots: React.FC<ScreenshotsProps> = ({ user, hideHeader }) => {
     const [screenshots, setScreenshots] = useState<Screenshot[]>([]);
     const [filteredScreenshots, setFilteredScreenshots] = useState<Screenshot[]>([]);
+    // ... items ...
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -216,10 +218,12 @@ export const Screenshots: React.FC<ScreenshotsProps> = ({ user }) => {
 
     return (
         <div className={styles.container}>
-            <PageHeader
-                title="Screenshots"
-                description="View and manage your Minecraft screenshots from all profiles."
-            />
+            {!hideHeader && (
+                <PageHeader
+                    title="Screenshots"
+                    description="View and manage your Minecraft screenshots from all profiles."
+                />
+            )}
 
             <div className={styles.stats}>
                 <div className={styles.statItem}>

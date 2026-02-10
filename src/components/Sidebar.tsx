@@ -1,6 +1,6 @@
 import React from 'react';
 import styles from './Sidebar.module.css';
-import { Home, Settings, FolderOpen, Package, Users, Image, Layers, Sparkles, LogOut, Globe, Newspaper, Code, ShieldAlert, User } from 'lucide-react';
+import { Home, Settings, FolderOpen, Package, Users, Image, LogOut, Newspaper, Code, ShieldAlert, User } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { UserAvatar } from './UserAvatar';
 import { useAuth } from '../context/AuthContext';
@@ -45,10 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
         {
             name: 'Library',
             tabs: [
-                { id: 'mods', label: 'Mods', icon: Package },
-                { id: 'resourcepacks', label: 'Resource Packs', icon: Layers },
-                { id: 'shaderpacks', label: 'Shader Packs', icon: Sparkles },
-                { id: 'modpacks', label: 'Modpacks', icon: Globe },
+                { id: 'library', label: 'Library', icon: Package },
                 { id: 'screenshots', label: 'Screenshots', icon: Image },
             ]
         },
@@ -92,7 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
                                     onClick={() => onTabChange(tab.id)}
                                 >
                                     <span className={styles.icon}>
-                                        <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                                        <Icon size={18} strokeWidth={isActive ? 2 : 1.75} />
                                     </span>
                                     <span className={styles.label}>
                                         {tab.label}
@@ -106,7 +103,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
                 ))}
             </nav>
 
-            <div className={`${styles.userProfile}`}>
+            <div
+                className={`${styles.userProfile} ${activeTab === 'profile' ? styles.activeProfile : ''}`}
+                onClick={() => onTabChange('profile')}
+                title="View Profile"
+            >
                 <div className={styles.avatarHead}>
                     <UserAvatar
                         username={user.name || (user as any).preferredSkin}

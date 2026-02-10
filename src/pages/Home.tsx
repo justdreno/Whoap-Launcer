@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { PageHeader } from '../components/PageHeader';
 import styles from './Home.module.css';
 import { InstanceApi, Instance } from '../api/instances';
@@ -8,7 +8,7 @@ import { ChevronDown, Rocket, Clock, Layers, Star, Globe, Search, Wifi, WifiOff,
 import heroBg from '../assets/background.png';
 import loginBg from '../assets/login_bg.png';
 import { useToast } from '../context/ToastContext';
-import { UserAvatar } from '../components/UserAvatar';
+import { SkinViewer3D } from '../components/SkinViewer3D';
 import { CreateInstanceModal } from '../components/CreateInstanceModal';
 import { ServerService, FeaturedServer } from '../services/ServerService';
 
@@ -22,34 +22,35 @@ interface HomeProps {
 }
 
 export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
-    const [instances, setInstances] = useState<Instance[]>([]);
-    const [selectedInstance, setSelectedInstance] = useState<Instance | null>(null);
-    const [showInstanceDropdown, setShowInstanceDropdown] = useState(false);
-    const [showCreateModal, setShowCreateModal] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [showSearch, setShowSearch] = useState(false);
+    const [instances, setInstances] = React.useState<Instance[]>([]);
+    const [selectedInstance, setSelectedInstance] = React.useState<Instance | null>(null);
+    const [showInstanceDropdown, setShowInstanceDropdown] = React.useState(false);
+    const [lastUpdated, setLastUpdated] = React.useState<number>(Date.now());
+    const [showCreateModal, setShowCreateModal] = React.useState(false);
+    const [searchQuery, setSearchQuery] = React.useState('');
+    const [showSearch, setShowSearch] = React.useState(false);
     const { showToast } = useToast();
 
     // Launch State
-    const [isLaunching, setIsLaunching] = useState(false);
-    const [launchStatus, setLaunchStatus] = useState('');
-    const [launchProgress, setLaunchProgress] = useState(0);
+    const [isLaunching, setIsLaunching] = React.useState(false);
+    const [launchStatus, setLaunchStatus] = React.useState('');
+    const [launchProgress, setLaunchProgress] = React.useState(0);
 
     // Server Status Widget State
-    const [serverIp, setServerIp] = useState('');
-    const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null);
-    const [statusLoading, setStatusLoading] = useState(false);
+    const [serverIp, setServerIp] = React.useState('');
+    const [serverStatus, setServerStatus] = React.useState<ServerStatus | null>(null);
+    const [statusLoading, setStatusLoading] = React.useState(false);
 
     // Featured Servers State
-    const [featuredServers, setFeaturedServers] = useState<FeaturedServer[]>([]);
-    const [featuredStatuses, setFeaturedStatuses] = useState<Record<string, ServerStatus>>({});
-    const [copiedServerId, setCopiedServerId] = useState<string | null>(null);
+    const [featuredServers, setFeaturedServers] = React.useState<FeaturedServer[]>([]);
+    const [featuredStatuses, setFeaturedStatuses] = React.useState<Record<string, ServerStatus>>({});
+    const [copiedServerId, setCopiedServerId] = React.useState<string | null>(null);
 
     // Skin Selector State
-    const [showSkinModal, setShowSkinModal] = useState(false);
-    const [tempSkin, setTempSkin] = useState((user as any).preferredSkin || user.name);
+    const [showSkinModal, setShowSkinModal] = React.useState(false);
+    const [tempSkin, setTempSkin] = React.useState((user as any).preferredSkin || user.name);
 
-    useEffect(() => {
+    React.useEffect(() => {
         const loadData = async () => {
             const list = await InstanceApi.list();
             setInstances(list);
@@ -389,13 +390,15 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
                         <div className={styles.skinOverlay}>
                             <div className={styles.skinNotice}>Change Skin</div>
                         </div>
-                        <UserAvatar
-                            username={user.name || (user as any).preferredSkin}
-                            preferredSkin={(user as any).preferredSkin}
-                            uuid={user.uuid}
-                            accountType={(user as any).type}
-                            variant="body"
+                        <SkinViewer3D
+                            skinUrl={(user as any).preferredSkin || user.name}
+                            capeUrl={(user as any).preferredCape}
+                            width={300}
+                            height={450}
+                            autoRotate={false}
+                            initialRotation={{ y: 0.8 }}
                             className={styles.heroImage}
+                            lastUpdated={lastUpdated}
                         />
                     </div>
                 ) : (
@@ -441,6 +444,7 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
                                     if (setUser) {
                                         setUser((prev: any) => ({ ...prev, preferredSkin: tempSkin }));
                                     }
+                                    setLastUpdated(Date.now());
 
                                     showToast(`Skin updated to ${tempSkin}!`, 'success');
                                 }

@@ -1,17 +1,13 @@
 .sidebar {
-    width: 270px;
-    /* පොඩ්ඩක් පළල වැඩි කරා */
+    width: 260px;
     height: 100vh;
-    background: rgba(12, 12, 12, 0.85);
-    /* ටිකක් තද කළු පාටක් */
-    backdrop-filter: blur(24px);
-    /* Blur එක වැඩි කරා */
-    -webkit-backdrop-filter: blur(24px);
-    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    background: linear-gradient(180deg, rgba(15, 15, 15, 0.98) 0%, rgba(10, 10, 10, 0.98) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(255, 255, 255, 0.04);
     display: flex;
     flex-direction: column;
-    padding: calc(var(--titlebar-height) + 24px) 20px 24px 20px;
-    /* Titlebar එකට හරියන්න උඩ padding එක හදන්න ඕන නම් මෙතන වෙනස් කරගන්න */
+    padding: calc(var(--titlebar-height) + 20px) 16px 20px 16px;
     box-sizing: border-box;
     z-index: 100;
 }
@@ -20,57 +16,53 @@
 .logoArea {
     display: flex;
     align-items: center;
-    gap: 16px;
-    margin-bottom: 32px;
-    /* Logo එකට යටින් ඉඩ වැඩි කරා */
-    padding: 0 12px;
+    gap: 14px;
+    margin-bottom: 28px;
+    padding: 0 8px;
 }
 
 .logoImg {
-    height: 48px;
-    /* ලෝගෝ එක ගානට පොඩි කරා */
+    height: 42px;
     width: auto;
     object-fit: contain;
-    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+    filter: drop-shadow(0 2px 8px rgba(255, 136, 0, 0.15));
 }
 
 .logoText {
     font-family: 'Inter', sans-serif;
     font-weight: 800;
-    font-size: 20px;
-    /* ෆොන්ට් සයිස් එක බැලන්ස් කරා */
+    font-size: 18px;
     color: #fff;
     line-height: 1;
+    letter-spacing: -0.3px;
 }
 
 .logoRank {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-top: 4px;
-    opacity: 0.9;
+    letter-spacing: 0.8px;
+    margin-top: 3px;
+    opacity: 0.85;
 }
 
 /* ================= NAVIGATIONS ================= */
 .nav {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    /* බට්න් අතර පරතරය */
+    gap: 2px;
     flex: 1;
     overflow-y: auto;
     padding-right: 4px;
 }
 
 .navCategory {
-    margin: 24px 0 8px 16px;
-    /* Category එකට උඩින් ඉඩ දුන්නා */
-    font-size: 11px;
-    font-weight: 800;
-    color: rgba(255, 255, 255, 0.3);
+    margin: 20px 0 6px 12px;
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.25);
     text-transform: uppercase;
-    letter-spacing: 1.5px;
+    letter-spacing: 1.2px;
 }
 
 .navCategory:first-child {
@@ -80,50 +72,54 @@
 .navItem {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 12px 16px;
-    /* බට්න් එකේ ඇතුලේ ඉඩ වැඩි කරා (උඩ/යට) */
+    gap: 12px;
+    padding: 10px 12px;
     background: transparent;
     border: none;
-    border-radius: 12px;
-    color: #888;
-    font-size: 14px;
-    /* ෆොන්ට් එක චුට්ටක් ලොකු කරා */
-    font-weight: 600;
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
     text-align: left;
     position: relative;
     width: 100%;
 }
 
 .navItem:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: #ccc;
-    transform: translateX(4px);
-    /* Hover කරාම පොඩ්ඩක් ඉස්සරහට පනිනවා */
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.8);
 }
 
 .navItem.active {
-    background: rgba(255, 136, 0, 0.15);
-    /* තැඹිලි පාට පසුබිම */
+    background: rgba(255, 136, 0, 0.12);
     color: #fff;
 }
 
 .navItem.active .icon {
-    color: #ffaa00;
-    filter: drop-shadow(0 0 8px rgba(255, 170, 0, 0.4));
-    /* අයිකන් එකට Glow එකක් */
+    color: #ff9500;
 }
 
 .icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
     color: inherit;
-    /* පාට උඩ එකෙන් ගන්නවා */
+    transition: all 0.15s ease;
+}
+
+.navItem:hover .icon {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.navItem.active .icon {
+    background: rgba(255, 136, 0, 0.15);
+    box-shadow: 0 0 12px rgba(255, 136, 0, 0.2);
 }
 
 .label {
@@ -136,66 +132,62 @@
 .activeIndicator {
     position: absolute;
     left: 0;
-    /* වම් පැත්තේ ඉරක් එනවා */
     top: 50%;
     transform: translateY(-50%);
-    width: 4px;
-    height: 20px;
-    border-radius: 0 4px 4px 0;
-    background: #ffaa00;
-    box-shadow: 2px 0 10px rgba(255, 170, 0, 0.5);
+    width: 3px;
+    height: 16px;
+    border-radius: 0 3px 3px 0;
+    background: linear-gradient(180deg, #ff9500 0%, #ff6b00 100%);
+    box-shadow: 2px 0 8px rgba(255, 136, 0, 0.4);
 }
 
 .betaBadge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 18px;
-    font-size: 9px;
+    height: 16px;
+    font-size: 8px;
     font-weight: 800;
     color: #000;
-    background: #ffaa00;
-    /* තද පාට බැජ් එකක් */
-    padding: 0 6px;
+    background: linear-gradient(135deg, #ff9500 0%, #ff7b00 100%);
+    padding: 0 5px;
     border-radius: 4px;
     margin-left: auto;
-    /* අයිනටම යවනවා */
+    letter-spacing: 0.3px;
 }
 
 /* ================= USER PROFILE (BOTTOM) ================= */
 .userProfile {
-    margin-top: 24px;
+    margin-top: 16px;
     display: flex;
     align-items: center;
-    padding: 12px;
-    gap: 14px;
-    background: rgba(0, 0, 0, 0.3);
-    /* කළු පාටට හුරු පසුබිම */
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
-    transition: all 0.2s;
+    padding: 10px 12px;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    transition: all 0.15s ease;
     cursor: pointer;
 }
 
 .userProfile:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.08);
 }
 
 .activeProfile {
-    border-color: #ffaa00 !important;
+    border-color: rgba(255, 136, 0, 0.3) !important;
     background: rgba(255, 136, 0, 0.05) !important;
 }
 
 .avatarHead {
-    width: 44px;
-    height: 44px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 10px;
+    width: 38px;
+    height: 38px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 4px;
     overflow: hidden;
 }
 
@@ -210,13 +202,13 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 2px;
+    gap: 1px;
     overflow: hidden;
 }
 
 .userName {
-    font-size: 14px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: 600;
     color: #fff;
     white-space: nowrap;
     overflow: hidden;
@@ -226,36 +218,36 @@
 .userRole {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     font-size: 10px;
-    font-weight: 700;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    opacity: 0.9;
+    letter-spacing: 0.4px;
+    opacity: 0.85;
 }
 
 .logoutBtn {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     background: transparent;
     border: none;
-    color: #666;
-    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.35);
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
 }
 
 .logoutBtn:hover {
     background: rgba(255, 68, 68, 0.1);
-    color: #ff4444;
+    color: #ff5555;
 }
 
 /* ================= SCROLLBAR ================= */
 .nav::-webkit-scrollbar {
-    width: 4px;
+    width: 3px;
 }
 
 .nav::-webkit-scrollbar-track {
@@ -263,10 +255,10 @@
 }
 
 .nav::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     border-radius: 10px;
 }
 
 .nav::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.15);
 }

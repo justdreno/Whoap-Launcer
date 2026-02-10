@@ -7,24 +7,28 @@ import { InstanceShaderPacks } from './';
 import { Skeleton } from '../components/Skeleton';
 
 interface ShaderPacksManagerProps {
-    user: any;
+    hideHeader?: boolean;
+    instanceId?: string | null;
 }
 
-export const ShaderPacksManager: React.FC<ShaderPacksManagerProps> = () => {
+export const ShaderPacksManager: React.FC<ShaderPacksManagerProps> = ({ hideHeader, instanceId }) => {
     const [instances, setInstances] = useState<Instance[]>([]);
-    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
 
+    const effectiveSelectedId = instanceId || localSelectedId;
+
     useEffect(() => {
-        loadInstances();
-    }, []);
+        if (!instanceId) {
+            loadInstances();
+        }
+    }, [instanceId]);
 
     const loadInstances = async () => {
         setLoading(true);
         try {
             const list = await InstanceApi.list();
-            // Typically shaders need Optifine or Iris (Fabric), but managing folders is safe for any instance
             setInstances(list);
         } catch (e) {
             console.error(e);
@@ -33,13 +37,17 @@ export const ShaderPacksManager: React.FC<ShaderPacksManagerProps> = () => {
         }
     };
 
-    if (selectedId) {
+    if (effectiveSelectedId) {
         return (
             <InstanceShaderPacks
-                instanceId={selectedId}
+                instanceId={effectiveSelectedId}
+                hideBackButton={!!instanceId}
+                hideHeader={hideHeader}
                 onBack={() => {
-                    setSelectedId(null);
-                    loadInstances();
+                    if (!instanceId) {
+                        setLocalSelectedId(null);
+                        loadInstances();
+                    }
                 }}
             />
         );
@@ -54,10 +62,12 @@ export const ShaderPacksManager: React.FC<ShaderPacksManagerProps> = () => {
     return (
         <div className={styles.container}>
             <div className={styles.topSection}>
-                <PageHeader
-                    title="Shader Packs"
-                    description="Manage shaders for your instances."
-                />
+                {!hideHeader && (
+                    <PageHeader
+                        title="Shader Packs"
+                        description="Manage shaders for your instances."
+                    />
+                )}
 
                 <div className={styles.searchWrapper}>
                     <Search size={18} className={styles.searchIcon} />
@@ -87,7 +97,7 @@ export const ShaderPacksManager: React.FC<ShaderPacksManagerProps> = () => {
                     </div>
                 ) : (
                     filtered.map(inst => (
-                        <div key={inst.id} className={styles.card} onClick={() => setSelectedId(inst.id)}>
+                        <div key={inst.id} className={styles.card} onClick={() => setLocalSelectedId(inst.id)}>
                             <div className={styles.cardBg} />
 
                             <div className={styles.cardContent}>

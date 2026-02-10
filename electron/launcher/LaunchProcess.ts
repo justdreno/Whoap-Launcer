@@ -103,7 +103,12 @@ export class LaunchProcess {
             try {
                 // 1. Fetch Version Data
                 // Try remote first
-                let versionData = await VersionManager.getVersionDetails(versionId);
+                let versionData: any = null;
+                try {
+                    versionData = await VersionManager.getVersionDetails(versionId);
+                } catch (e) {
+                    console.warn("[Launch] Failed to fetch remote version details, falling back to local:", e);
+                }
 
                 // Fallback: Local JSON (TLauncher/Custom)
                 if (!versionData) {
@@ -334,6 +339,11 @@ export class LaunchProcess {
 
                 // 3. Start Downloads
                 if (downloads.length > 0) {
+                    // Check only connectivity if we have downloads?
+                    // Actually, let the downloader try. If it fails, we catch it.
+                    // But maybe we want to fail faster if we know we are offline?
+                    // For now, let's rely on downloader error, but catch it specifically.
+
                     DiscordManager.getInstance().updatePresence({
                         details: `Launching ${instanceId}`,
                         state: 'Downloading game files...',
@@ -344,22 +354,30 @@ export class LaunchProcess {
                     event.sender.send('launch:progress', { status: 'Downloading files...', progress: 0, total: downloads.length });
                     this.downloader.addToQueue(downloads);
 
-                    await new Promise<void>((resolve, reject) => {
-                        this.downloader.on('done', resolve);
-                        this.downloader.on('error', reject);
-                        let lastProgress = 0;
-                        this.downloader.on('progress', (p) => {
-                            const now = Date.now();
-                            if (now - lastProgress > 200) {
-                                event.sender.send('launch:progress', {
-                                    status: `Downloading... ${(p.current / 1024 / 1024).toFixed(1)}MB`,
-                                    progress: p.current,
-                                    total: p.total
-                                });
-                                lastProgress = now;
-                            }
+                    try {
+                        await new Promise<void>((resolve, reject) => {
+                            this.downloader.on('done', resolve);
+                            this.downloader.on('error', reject);
+                            let lastProgress = 0;
+                            this.downloader.on('progress', (p) => {
+                                const now = Date.now();
+                                if (now - lastProgress > 200) {
+                                    event.sender.send('launch:progress', {
+                                        status: `Downloading... ${(p.current / 1024 / 1024).toFixed(1)}MB`,
+                                        progress: p.current,
+                                        total: p.total
+                                    });
+                                    lastProgress = now;
+                                }
+                            });
                         });
-                    });
+                    } catch (e: any) {
+                        // If we failed to download, check if we are offline.
+                        // If we are offline, and the files are ESSENTIAL (libraries), we must fail.
+                        // But wait, the queue only contains missing files. So we are missing files.
+                        console.error("[Launch] Download failed:", e);
+                        throw new Error(`Failed to download required files: ${e.message}. Please check your connection.`);
+                    }
                 }
 
                 // 3.5 Download Missing/Corrupt Assets
@@ -398,7 +416,7 @@ export class LaunchProcess {
                                 // Verify file size matches
                                 const stats = fs.statSync(assetPath);
                                 if (stats.size !== size) {
-                                    console.log(`[Launch] Asset ${assetKey} size mismatch. Expected: ${size}, Got: ${stats.size}`);
+                                    // console.log(`[Launch] Asset ${assetKey} size mismatch. Expected: ${size}, Got: ${stats.size}`);
                                     needsDownload = true;
                                 }
                             }
@@ -438,22 +456,32 @@ export class LaunchProcess {
                             });
 
                             this.downloader.addToQueue(assetDownloads);
-                            await new Promise<void>((resolve, reject) => {
-                                this.downloader.on('done', resolve);
-                                this.downloader.on('error', reject);
-                                let lastProgress = 0;
-                                this.downloader.on('progress', (p) => {
-                                    const now = Date.now();
-                                    if (now - lastProgress > 200) {
-                                        event.sender.send('launch:progress', {
-                                            status: `Downloading assets... ${(p.current / 1024 / 1024).toFixed(1)}MB`,
-                                            progress: p.current,
-                                            total: p.total
-                                        });
-                                        lastProgress = now;
-                                    }
+
+                            // For assets, if we are offline, we might want to skip downloading and try launching anyway?
+                            // Minecraft might look broken (missing textures) but it might run.
+                            // But AssetDownloader throws on error. 
+                            // Let's wrapping this too.
+                            try {
+                                await new Promise<void>((resolve, reject) => {
+                                    this.downloader.on('done', resolve);
+                                    this.downloader.on('error', reject);
+                                    let lastProgress = 0;
+                                    this.downloader.on('progress', (p) => {
+                                        const now = Date.now();
+                                        if (now - lastProgress > 200) {
+                                            event.sender.send('launch:progress', {
+                                                status: `Downloading assets... ${(p.current / 1024 / 1024).toFixed(1)}MB`,
+                                                progress: p.current,
+                                                total: p.total
+                                            });
+                                            lastProgress = now;
+                                        }
+                                    });
                                 });
-                            });
+                            } catch (e: any) {
+                                console.warn("[Launch] Failed to download assets, likely offline. Launching anyway...", e);
+                                // We proceed!
+                            }
                         }
                     } catch (e) {
                         console.error('[Launch] Failed to process asset index:', e);
@@ -660,6 +688,9 @@ export class LaunchProcess {
                     javaPath = javaPath.replace('java.exe', 'javaw.exe');
                 }
 
+                // Auto-configure Skin Loader if present
+                await this.ensureSkinConfig(instancePath, authData);
+
                 DiscordManager.getInstance().updatePresence({
                     details: `Playing ${instanceId}`,
                     state: `Version ${versionId}`,
@@ -742,4 +773,183 @@ export class LaunchProcess {
             }
         });
     }
+
+    /**
+     * Download a file from URL and save to disk.
+     */
+    private async downloadFile(url: string, dest: string): Promise<void> {
+        const https = await import('https');
+        const http = await import('http');
+
+        return new Promise((resolve, reject) => {
+            const mod = (url.startsWith('https') ? https : http) as any;
+            const request = mod.get(url, (response: any) => {
+                // Follow redirects
+                if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+                    this.downloadFile(response.headers.location, dest).then(resolve).catch(reject);
+                    return;
+                }
+                if (response.statusCode !== 200) {
+                    reject(new Error(`Download failed: ${response.statusCode}`));
+                    return;
+                }
+                const fileStream = fs.createWriteStream(dest);
+                response.pipe(fileStream);
+                fileStream.on('finish', () => { fileStream.close(); resolve(); });
+                fileStream.on('error', reject);
+            });
+            request.on('error', reject);
+            request.setTimeout(10000, () => { request.destroy(); reject(new Error('Download timeout')); });
+        });
+    }
+
+    private async ensureSkinConfig(instancePath: string, authData?: any) {
+        try {
+            const modsDir = path.join(instancePath, 'mods');
+            if (!fs.existsSync(modsDir)) return;
+
+            // Check if OfflineSkins or CustomSkinLoader is installed
+            const files = await fs.promises.readdir(modsDir);
+            const hasSkinMod = files.some(f =>
+                f.toLowerCase().includes('offlineskins') ||
+                f.toLowerCase().includes('customskinloader')
+            );
+
+            if (hasSkinMod) {
+                const configDir = path.join(instancePath, 'CustomSkinLoader');
+                if (!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true });
+
+                // Determine target username for the file (the player's in-game name)
+                const targetUsername = authData?.name || authData?.username || "Steve";
+                const skinSource = authData?.preferredSkin || targetUsername;
+
+                if (skinSource) {
+                    const localSkinRoot = path.join(configDir, 'LocalSkin');
+                    const skinsDir = path.join(localSkinRoot, 'skins');
+
+                    if (!fs.existsSync(skinsDir)) fs.mkdirSync(skinsDir, { recursive: true });
+
+                    // Always save as {username}.png so CustomSkinLoader finds it for the active player
+                    const targetFile = path.join(skinsDir, `${targetUsername}.png`);
+
+                    try {
+                        if (skinSource.startsWith('file:')) {
+                            // Custom imported skin — copy from appData/skins/
+                            const fileName = skinSource.replace('file:', '');
+                            const srcPath = path.join(app.getPath('userData'), 'skins', fileName);
+
+                            if (fs.existsSync(srcPath)) {
+                                fs.copyFileSync(srcPath, targetFile);
+                                console.log(`[Launch] Copied custom skin "${fileName}" to LocalSkin/skins/${targetUsername}.png`);
+                            } else {
+                                console.warn(`[Launch] Custom skin file not found: ${srcPath}`);
+                            }
+                        } else {
+                            // Username — download skin texture from mc-heads.net
+                            const skinUrl = `https://mc-heads.net/skin/${encodeURIComponent(skinSource)}`;
+                            console.log(`[Launch] Downloading skin for "${skinSource}"...`);
+                            await this.downloadFile(skinUrl, targetFile);
+                            console.log(`[Launch] Downloaded skin for "${skinSource}" to LocalSkin/skins/${targetUsername}.png`);
+                        }
+                    } catch (e) {
+                        console.warn(`[Launch] Failed to prepare skin texture for "${skinSource}":`, e);
+                    }
+                } else {
+                    console.log("[Launch] No skin source provided, skipping local skin preparation.");
+                }
+
+                // Handle Cape
+                const capeSource = authData?.preferredCape;
+                if (capeSource) {
+                    const localSkinRoot = path.join(configDir, 'LocalSkin');
+                    const capesDir = path.join(localSkinRoot, 'capes');
+                    if (!fs.existsSync(capesDir)) fs.mkdirSync(capesDir, { recursive: true });
+
+                    const targetFile = path.join(capesDir, `${targetUsername}.png`);
+
+                    try {
+                        if (capeSource.startsWith('file:')) {
+                            // Custom imported cape — copy from appData/capes/
+                            const fileName = capeSource.replace('file:', '');
+                            const srcPath = path.join(app.getPath('userData'), 'capes', fileName);
+
+                            if (fs.existsSync(srcPath)) {
+                                fs.copyFileSync(srcPath, targetFile);
+                                console.log(`[Launch] Copied custom cape "${fileName}" to LocalSkin/capes/${targetUsername}.png`);
+                            } else {
+                                console.warn(`[Launch] Custom cape file not found: ${srcPath}`);
+                            }
+                        }
+                        // We don't download capes from usernames for now as there's no reliable "get cape png" endpoint 
+                        // that matches the skin one perfectly without authentication or UUIDs.
+                        // Users can just import the file if they have it.
+                    } catch (e) {
+                        console.warn(`[Launch] Failed to prepare cape texture for "${capeSource}":`, e);
+                    }
+                }
+
+                const configPath = path.join(configDir, 'CustomSkinLoader.json');
+
+                const whoapServer = {
+                    "name": "Whoap Skin Server",
+                    "type": "CustomSkinAPI",
+                    "root": "https://skins.whoap.gg/"
+                };
+
+                const localSkinSource = {
+                    "name": "LocalSkin",
+                    "type": "Legacy",
+                    "root": "LocalSkin/",
+                    "checkPNG": false,
+                    "skin": "skins/{USERNAME}.png", // Fixed path: relative to root
+                    "model": "auto",
+                    "cape": "capes/{USERNAME}.png", // Fixed path: relative to root
+                    "elytra": "elytras/{USERNAME}.png"
+                };
+
+                let config: any = {
+                    "enable": true,
+                    "loadlist": [
+                        localSkinSource,
+                        whoapServer,
+                        {
+                            "name": "Mojang",
+                            "type": "MojangAPI"
+                        }
+                    ]
+                };
+
+                // If config exists, we merge carefully
+                if (fs.existsSync(configPath)) {
+                    try {
+                        const existing = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                        if (existing.loadlist && Array.isArray(existing.loadlist)) {
+                            const hasWhoap = existing.loadlist.some((e: any) => e.name === "Whoap Skin Server");
+                            const hasLocal = existing.loadlist.some((e: any) => e.name === "LocalSkin");
+
+                            if (!hasWhoap || !hasLocal) {
+                                // Add missing entries to top
+                                if (!hasLocal) existing.loadlist.unshift(localSkinSource);
+                                if (!hasWhoap) existing.loadlist.splice(1, 0, whoapServer);
+                                config = existing;
+                            } else {
+                                // Already fully configured, just ensure config is written (skin file updated above)
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        // Corrupt config, overwrite
+                    }
+                }
+
+                await fs.promises.writeFile(configPath, JSON.stringify(config, null, 4));
+                console.log("[Launch] Configured CustomSkinLoader with LocalSkin + Whoap Server.");
+            }
+        } catch (e) {
+            console.warn("[Launch] Failed to configure skin loader", e);
+        }
+    }
 }
+
+
+

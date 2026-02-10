@@ -4,11 +4,13 @@ import { useConfirm } from '../context/ConfirmContext';
 import styles from './InstanceMods.module.css';
 import { ChevronLeft, Trash2, Plus, Package, Power, Lock } from 'lucide-react';
 import { Skeleton } from '../components/Skeleton';
-import { ModBrowser } from '../components/ModBrowser';
+import { ContentBrowser } from '../components/ContentBrowser';
 
 interface InstanceModsProps {
     instanceId: string;
     onBack: () => void;
+    hideBackButton?: boolean;
+    hideHeader?: boolean;
 }
 
 interface InstalledItem {
@@ -18,7 +20,7 @@ interface InstalledItem {
     isEnabled: boolean;
 }
 
-export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, onBack }) => {
+export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, onBack, hideBackButton, hideHeader }) => {
     const [installedItems, setInstalledItems] = useState<InstalledItem[]>([]);
     const [installedSearchQuery, setInstalledSearchQuery] = useState('');
     const [loading, setLoading] = useState(false);
@@ -123,20 +125,24 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, onBack }
 
     return (
         <div className={styles.container}>
-            <div className={styles.header}>
-                <button className={styles.backBtn} onClick={onBack} title="Back">
-                    <ChevronLeft size={24} />
-                </button>
-                <div className={styles.titleArea}>
-                    <h1 className={styles.pageTitle}>Manage Content</h1>
-                    {instanceMeta && (
-                        <div className={styles.instanceBadge}>
-                            <span>Minecraft {instanceMeta.version}</span>
-                            <div className={styles.loaderTag}>{instanceMeta.loader}</div>
-                        </div>
+            {!hideHeader && (
+                <div className={styles.header}>
+                    {!hideBackButton && (
+                        <button className={styles.backBtn} onClick={onBack} title="Back">
+                            <ChevronLeft size={24} />
+                        </button>
                     )}
+                    <div className={styles.titleArea}>
+                        <h1 className={styles.pageTitle}>Manage Content</h1>
+                        {instanceMeta && (
+                            <div className={styles.instanceBadge}>
+                                <span>Minecraft {instanceMeta.version}</span>
+                                <div className={styles.loaderTag}>{instanceMeta.loader}</div>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div className={styles.searchArea}>
                 <input
@@ -206,10 +212,11 @@ export const InstanceMods: React.FC<InstanceModsProps> = ({ instanceId, onBack }
                 )}
             </div>
             {showBrowser && instanceMeta && (
-                <ModBrowser
+                <ContentBrowser
                     instanceId={instanceId}
                     version={instanceMeta.version}
                     loader={instanceMeta.loader}
+                    type="mod"
                     onClose={() => {
                         setShowBrowser(false);
                         loadInstalledItems();

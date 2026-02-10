@@ -18,51 +18,102 @@ export interface ChangelogItem {
     date: string;
 }
 
+interface CachedData<T> {
+    data: T[];
+    timestamp: number;
+}
+
+const CACHE_KEYS = {
+    news: 'whoap_news_cache',
+    changelogs: 'whoap_changelogs_cache',
+};
+
+function saveToCache<T>(key: string, data: T[]): void {
+    try {
+        const cached: CachedData<T> = { data, timestamp: Date.now() };
+        localStorage.setItem(key, JSON.stringify(cached));
+    } catch (e) {
+        console.warn('[ContentManager] Failed to save cache:', e);
+    }
+}
+
+function loadFromCache<T>(key: string): { data: T[]; fromCache: boolean; age: number } | null {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        const cached: CachedData<T> = JSON.parse(raw);
+        if (!cached.data || !Array.isArray(cached.data)) return null;
+        return { data: cached.data, fromCache: true, age: Date.now() - cached.timestamp };
+    } catch {
+        return null;
+    }
+}
+
 export const ContentManager = {
-    fetchNews: async (): Promise<NewsItem[]> => {
-        const { data, error } = await supabase
-            .from('news')
-            .select('*')
-            //.eq('published', true) // Show all for now, or use published
-            .or(`published.eq.true,published.is.null`) // Handle legacy/missing
-            .order('created_at', { ascending: false })
-            .limit(10); // Increased limit
+    fetchNews: async (): Promise<{ items: NewsItem[]; fromCache: boolean }> => {
+        try {
+            const { data, error } = await supabase
+                .from('news')
+                .select('*')
+                .or(`published.eq.true,published.is.null`)
+                .order('created_at', { ascending: false })
+                .limit(10);
 
-        if (error) {
-            console.error("News Fetch Error:", error);
-            return [];
+            if (error) throw error;
+
+            const items: NewsItem[] = data.map((row: any) => ({
+                id: row.id,
+                title: row.title,
+                content: row.content,
+                image_url: row.image_url,
+                color: row.color,
+                link_url: row.link_url,
+                date: row.created_at
+            }));
+
+            // Cache successful fetch
+            saveToCache(CACHE_KEYS.news, items);
+            return { items, fromCache: false };
+        } catch (e) {
+            console.error("[ContentManager] News fetch failed, trying cache:", e);
+            // Fallback to cache
+            const cached = loadFromCache<NewsItem>(CACHE_KEYS.news);
+            if (cached) {
+                return { items: cached.data, fromCache: true };
+            }
+            return { items: [], fromCache: false };
         }
-
-        return data.map((row: any) => ({
-            id: row.id,
-            title: row.title,
-            content: row.content,
-            image_url: row.image_url,
-            color: row.color, // Map new color field
-            link_url: row.link_url,
-            date: row.created_at
-        }));
     },
 
-    fetchChangelogs: async (): Promise<ChangelogItem[]> => {
-        const { data, error } = await supabase
-            .from('changelogs')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(10);
+    fetchChangelogs: async (): Promise<{ items: ChangelogItem[]; fromCache: boolean }> => {
+        try {
+            const { data, error } = await supabase
+                .from('changelogs')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(10);
 
-        if (error) {
-            console.error("Changelog Fetch Error:", error);
-            return [];
+            if (error) throw error;
+
+            const items: ChangelogItem[] = data.map((row: any) => ({
+                id: row.id,
+                version: row.version,
+                description: row.description,
+                type: row.type,
+                date: row.created_at
+            }));
+
+            // Cache successful fetch
+            saveToCache(CACHE_KEYS.changelogs, items);
+            return { items, fromCache: false };
+        } catch (e) {
+            console.error("[ContentManager] Changelog fetch failed, trying cache:", e);
+            const cached = loadFromCache<ChangelogItem>(CACHE_KEYS.changelogs);
+            if (cached) {
+                return { items: cached.data, fromCache: true };
+            }
+            return { items: [], fromCache: false };
         }
-
-        return data.map((row: any) => ({
-            id: row.id,
-            version: row.version,
-            description: row.description,
-            type: row.type,
-            date: row.created_at
-        }));
     },
 
     createChangelog: async (changelog: Omit<ChangelogItem, 'id' | 'date'>): Promise<ChangelogItem | null> => {

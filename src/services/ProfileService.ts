@@ -7,6 +7,7 @@ export interface UserProfile {
     role: 'user' | 'admin' | 'developer';
     avatar_url?: string;
     preferred_skin?: string;
+    preferred_cape?: string;
     joined_at?: string;
     banned?: boolean;
     ban_reason?: string;

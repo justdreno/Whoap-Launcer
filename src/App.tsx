@@ -17,16 +17,14 @@ import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 
 // Lazy-load non-critical pages for faster startup
-const Instances = lazy(() => import('./pages/Instances').then(m => ({ default: m.Instances })));
-const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
-const ModpackBrowser = lazy(() => import('./pages/ModpackBrowser').then(m => ({ default: m.ModpackBrowser })));
-const ModsManager = lazy(() => import('./pages/ModsManager').then(m => ({ default: m.ModsManager })));
-const ResourcePacksManager = lazy(() => import('./pages/ResourcePacksManager').then(m => ({ default: m.ResourcePacksManager })));
-const ShaderPacksManager = lazy(() => import('./pages/ShaderPacksManager').then(m => ({ default: m.ShaderPacksManager })));
+const Library = lazy(() => import('./pages/Library').then(m => ({ default: m.Library })));
+const Screenshots = lazy(() => import('./pages/Screenshots').then(m => ({ default: m.Screenshots })));
 const News = lazy(() => import('./pages/News').then(m => ({ default: m.News })));
 const Friends = lazy(() => import('./pages/Friends').then(m => ({ default: m.Friends })));
 const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
-const Screenshots = lazy(() => import('./pages/Screenshots').then(m => ({ default: m.Screenshots })));
+const Instances = lazy(() => import('./pages/Instances').then(m => ({ default: m.Instances })));
+const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 
 // Fallback component for lazy loading
 const PageLoader = () => (
@@ -84,13 +82,29 @@ function App() {
                         }
                     }
 
+                    // Check local storage for preferredSkin (persistence)
+                    let storedSkin = result.profile.preferredSkin;
+                    let storedCape = result.profile.preferredCape;
+
+                    if (!storedSkin || !storedCape) {
+                        try {
+                            const { AccountManager } = await import('./utils/AccountManager');
+                            const activeAccount = AccountManager.getActive();
+                            if (activeAccount && activeAccount.uuid === result.profile.uuid) {
+                                if (!storedSkin) storedSkin = activeAccount.preferredSkin;
+                                if (!storedCape) storedCape = activeAccount.preferredCape;
+                            }
+                        } catch (e) { /* ignore */ }
+                    }
+
                     setUser({
                         name: result.profile.name,
                         uuid: result.profile.uuid,
                         token: result.profile.token,
                         type: result.profile.type,
                         role: role,
-                        preferredSkin: result.profile.preferredSkin // Reconstructed main.ts might not have had this, but we'll sync it
+                        preferredSkin: storedSkin, // Priority: Session -> LocalStorage -> undefined
+                        preferredCape: storedCape
                     });
 
                     // If it's a legacy whoap account from storage, refresh preferredSkin from Supabase
@@ -105,6 +119,9 @@ function App() {
                             if (dbProfile?.preferred_skin) {
                                 setUser((prev: any) => ({ ...prev, preferredSkin: dbProfile.preferred_skin }));
                             }
+                            if (dbProfile?.preferred_cape) {
+                                setUser((prev: any) => ({ ...prev, preferredCape: dbProfile.preferred_cape }));
+                            }
                         } catch (e) {
                             console.warn("[App] Could not fetch preferred skin from DB");
                         }
@@ -114,7 +131,31 @@ function App() {
                     if (result.profile.type === 'whoap' && result.profile.token && navigator.onLine) {
                         try {
                             const { CloudManager } = await import('./utils/CloudManager');
-                            CloudManager.syncSession(result.profile.token, result.profile.refreshToken);
+                            const syncResult = await CloudManager.syncSession(result.profile.token, result.profile.refreshToken);
+
+                            // If session was refreshed, update stored tokens
+                            if (syncResult.success && syncResult.session) {
+                                const { AccountManager } = await import('./utils/AccountManager');
+                                AccountManager.addAccount({
+                                    name: result.profile.name,
+                                    uuid: syncResult.session.user.id,
+                                    token: syncResult.session.access_token,
+                                    refreshToken: syncResult.session.refresh_token,
+                                    type: 'whoap'
+                                });
+
+                                // Update main process session store
+                                window.ipcRenderer.invoke('auth:update-session', {
+                                    token: syncResult.session.access_token,
+                                    refreshToken: syncResult.session.refresh_token
+                                });
+
+                                // Update local state with new token
+                                setUser((prev: any) => ({
+                                    ...prev,
+                                    token: syncResult.session.access_token
+                                }));
+                            }
                         } catch (e) {
                             console.warn("[App] Failed to sync session");
                         }
@@ -169,6 +210,17 @@ function App() {
     }, []);
 
     const handleLogout = async () => {
+        // Remove Whoap accounts from local storage on logout (per user request)
+        // Offline accounts are kept. Microsoft accounts are kept (unless we want to change that too, but sticking to request specificities).
+        if (user && user.type === 'whoap') {
+            try {
+                const { AccountManager } = await import('./utils/AccountManager');
+                AccountManager.removeAccount(user.uuid);
+            } catch (e) {
+                console.error("Failed to remove WHOAP account from storage", e);
+            }
+        }
+
         await window.ipcRenderer.invoke('auth:logout');
         await supabase.auth.signOut(); // Ensure AuthContext is cleared
         setUser(null);
@@ -192,15 +244,13 @@ function App() {
                         {activeTab === 'home' && <Home user={user} setUser={setUser} />}
                         <Suspense fallback={<PageLoader />}>
                             {activeTab === 'profiles' && <Instances />}
-                            {activeTab === 'screenshots' && <Screenshots user={user} />}
                             {activeTab === 'settings' && <Settings />}
-                            {activeTab === 'modpacks' && <ModpackBrowser isOnline={isOnline} />}
-                            {activeTab === 'mods' && <ModsManager user={user} />}
-                            {activeTab === 'resourcepacks' && <ResourcePacksManager user={user} />}
-                            {activeTab === 'shaderpacks' && <ShaderPacksManager user={user} />}
+                            {activeTab === 'library' && <Library user={user} isOnline={isOnline} />}
+                            {activeTab === 'screenshots' && <Screenshots user={user} />}
                             {activeTab === 'friends' && <Friends isOnline={isOnline} />}
                             {activeTab === 'news' && <News />}
                             {activeTab === 'admin' && <Admin user={user} />}
+                            {activeTab === 'profile' && <Profile user={user} setUser={setUser} />}
                         </Suspense>
                     </MainLayout>
                 </ConfirmProvider>

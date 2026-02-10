@@ -6,6 +6,7 @@ export interface StoredAccount {
     expiresAt?: number;
     type: 'microsoft' | 'offline' | 'whoap';
     preferredSkin?: string;
+    preferredCape?: string;
 }
 
 const STORAGE_KEY = 'whoap_accounts';

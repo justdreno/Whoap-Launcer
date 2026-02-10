@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, protocol, net } from 'electron';
 import path from 'path';
 import fs from 'fs';
 
@@ -50,6 +50,12 @@ import { ShaderPackManager } from './managers/ShaderPackManager';
 process.env.DIST = path.join(__dirname, '../dist-react');
 process.env.PUBLIC = app.isPackaged ? process.env.DIST! : path.join(process.env.DIST!, '../public');
 
+// --- 0.5 Register Protocols as Privileged ---
+protocol.registerSchemesAsPrivileged([
+    { scheme: 'whoap-skin', privileges: { secure: true, standard: true, supportFetchAPI: true } },
+    { scheme: 'whoap-cape', privileges: { secure: true, standard: true, supportFetchAPI: true } }
+]);
+
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
 
 let win: BrowserWindow | null = null;
@@ -59,8 +65,8 @@ let tray: Tray | null = null;
 // --- 1. Create Splash Screen ---
 function createSplashWindow() {
     splash = new BrowserWindow({
-        width: 300, // Compact Size
-        height: 350,
+        width: 340, // Expanded for new design
+        height: 400,
         transparent: true,
         frame: false,
         alwaysOnTop: true,
@@ -191,6 +197,49 @@ if (!app.requestSingleInstanceLock()) {
 
         // Start UI Flow
         createSplashWindow(); // Show splash immediately
+        // --- 0.7 Register Protocol Handlers ---
+        protocol.handle('whoap-skin', async (request: Request) => {
+            console.log(`[Protocol] Request URL: ${request.url}`);
+            // Manual parsing is more robust for custom schemes with query params
+            let fileName = request.url.replace('whoap-skin://', '');
+            fileName = fileName.split('?')[0]; // Strip query string
+            fileName = fileName.replace(/\/+$/, ''); // Strip ALL trailing slashes
+            fileName = decodeURIComponent(fileName);
+
+            const filePath = path.join(app.getPath('userData'), 'skins', fileName);
+            console.log(`[Protocol] Resolved Skin: "${fileName}" -> "${filePath}"`);
+            try {
+                if (!fs.existsSync(filePath)) {
+                    console.warn(`[Protocol] Skin file NOT found at: ${filePath}`);
+                    return new Response(null, { status: 404 });
+                }
+                return await net.fetch('file://' + filePath);
+            } catch (e) {
+                console.error('[Protocol] Error loading skin', e);
+                return new Response(null, { status: 404 });
+            }
+        });
+
+        protocol.handle('whoap-cape', async (request: Request) => {
+            let fileName = request.url.replace('whoap-cape://', '');
+            fileName = fileName.split('?')[0]; // Strip query string
+            if (fileName.endsWith('/')) fileName = fileName.slice(0, -1); // Strip trailing slash
+            fileName = decodeURIComponent(fileName);
+
+            const filePath = path.join(app.getPath('userData'), 'capes', fileName);
+            console.log(`[Protocol] Loading cape: ${fileName} -> ${filePath}`);
+            try {
+                if (!fs.existsSync(filePath)) {
+                    console.warn(`[Protocol] Cape file not found: ${filePath}`);
+                    return new Response(null, { status: 404 });
+                }
+                return await net.fetch('file://' + filePath);
+            } catch (e) {
+                console.error('[Protocol] Failed to load cape', e);
+                return new Response(null, { status: 404 });
+            }
+        });
+
         createMainWindow();   // Load main app in background
         createTray();
     });
@@ -242,4 +291,90 @@ function registerIpcHandlers() {
         }
     });
 
+    ipcMain.on('log-to-terminal', (_, message) => {
+        console.log(`[Renderer] ${message}`);
+    });
+
+    // Skin Import - Open file dialog, copy to appData/skins/
+    ipcMain.handle('skin:import', async (_, username?: string) => {
+        const { dialog } = require('electron');
+        const fsExtra = require('fs');
+        const result = await dialog.showOpenDialog({
+            title: 'Import Skin',
+            filters: [{ name: 'Skin Files', extensions: ['png'] }],
+            properties: ['openFile']
+        });
+
+        if (result.canceled || result.filePaths.length === 0) {
+            return { success: false, canceled: true };
+        }
+
+        const srcPath = result.filePaths[0];
+        const skinsDir = path.join(app.getPath('userData'), 'skins');
+
+        if (!fsExtra.existsSync(skinsDir)) {
+            fsExtra.mkdirSync(skinsDir, { recursive: true });
+        }
+
+        // Generate friendly filename
+        let fileName;
+        if (username) {
+            // Sanitize username just in case
+            const safeName = username.replace(/[^a-zA-Z0-9_-]/g, '');
+            const timestamp = Date.now().toString().slice(-6); // Last 6 digits for brevity
+            fileName = `${safeName}_${timestamp}.png`;
+        } else {
+            fileName = path.basename(srcPath);
+        }
+
+        const destPath = path.join(skinsDir, fileName);
+
+        try {
+            fsExtra.copyFileSync(srcPath, destPath);
+            console.log(`[Skin] Imported skin: ${fileName}`);
+            return { success: true, fileName, filePath: destPath };
+        } catch (e) {
+            console.error('[Skin] Failed to import skin:', e);
+            return { success: false, error: String(e) };
+        }
+    });
+
+    // Get skins directory path
+    ipcMain.handle('skin:get-path', async () => {
+        return path.join(app.getPath('userData'), 'skins');
+    });
+
+    // Cape Import
+    ipcMain.handle('cape:import', async () => {
+        const { dialog } = require('electron');
+        const fsExtra = require('fs');
+        const result = await dialog.showOpenDialog({
+            title: 'Import Cape',
+            filters: [{ name: 'Cape Files', extensions: ['png'] }],
+            properties: ['openFile']
+        });
+
+        if (result.canceled || result.filePaths.length === 0) {
+            return { success: false, canceled: true };
+        }
+
+        const srcPath = result.filePaths[0];
+        const capesDir = path.join(app.getPath('userData'), 'capes');
+        if (!fsExtra.existsSync(capesDir)) fsExtra.mkdirSync(capesDir, { recursive: true });
+
+        const fileName = path.basename(srcPath);
+        const destPath = path.join(capesDir, fileName);
+
+        try {
+            fsExtra.copyFileSync(srcPath, destPath);
+            return { success: true, fileName };
+        } catch (e) {
+            console.error('Failed to copy cape file', e);
+            return { success: false, error: String(e) };
+        }
+    });
+
+    ipcMain.handle('cape:get-path', () => {
+        return path.join(app.getPath('userData'), 'capes');
+    });
 }
