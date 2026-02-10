@@ -15,7 +15,7 @@
 **Limitless possibilities. Uncompromised performance.**  
 Whoap redefines the Minecraft launcher experience with a stunning design language, intelligent instance isolation, and seamless offline support.
 
-[Report Bug](https://github.com/yourusername/whoap/issues) · [Request Feature](https://github.com/yourusername/whoap/issues)
+[Report Bug](https://github.com/justdreno/Whoap-Launcer/issues) · [Request Feature](https://github.com/justdreno/Whoap-Launcer/issues)
 
 </div>
 
@@ -54,7 +54,7 @@ Built with a cutting-edge stack for maximum performance and developer experience
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/whoap.git
+git clone https://github.com/justdreno/Whoap-Launcher.git
 cd whoap
 
 # Install dependencies
@@ -81,7 +81,7 @@ npm run build
 
 <div align="center">
 
-By **[Your Name]**  
+By **[Navidu Sathsara]**  
 *Built for the Minecraft Community*
 
 </div>
