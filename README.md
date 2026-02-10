@@ -1,87 +1,190 @@
+# 🟠 WHOAP
 
 <div align="center">
 
-# WHOAP
-### THE NEXT GENERATION LAUNCHER
+### The Next Level Minecraft Launcher
 
-![Version](https://img.shields.io/badge/version-2.3.1-orange?style=for-the-badge&logo=appveyor)
-![License](https://img.shields.io/badge/license-ISC-blue?style=for-the-badge&logo=appveyor)
-![Platform](https://img.shields.io/badge/platform-win%20|%20mac%20|%20linux-lightgrey?style=for-the-badge&logo=appveyor)
+![Version](https://img.shields.io/badge/version-2.3.7-orange?style=for-the-badge)
+![License](https://img.shields.io/badge/license-ISC-blue?style=for-the-badge)
+![Platform](https://img.shields.io/badge/platform-Windows-blue?style=for-the-badge)
 
-<img src="./assets/hero_preview.png" alt="Whoap Launcher Preview" width="100%" style="border-radius: 10px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+---
 
-<br/>
+![Whoap Launcher Preview](./public/home_page.png)
 
-**Limitless possibilities. Uncompromised performance.**  
-Whoap redefines the Minecraft launcher experience with a stunning design language, intelligent instance isolation, and seamless offline support.
+---
 
-[Report Bug](https://github.com/justdreno/Whoap-Launcer/issues) · [Request Feature](https://github.com/justdreno/Whoap-Launcer/issues)
+**Whoap** is a modern Minecraft launcher built with Electron and React, featuring a stunning dark UI, intelligent instance management, and seamless offline support.
+
+[🌐 Website](https://github.com/justdreno/Whoap-Launcer) ·
+[📜 Roadmap](./roadmap.md) ·
+[💬 Discord](https://dsc.gg/whoap) ·
+[🐛 Report Bug](https://github.com/justdreno/Whoap-Launcer/issues)
 
 </div>
 
 ---
 
-## Features At A Glance
+## ✨ Features
 
-| **Performance First** | **Premium Design** |
-|:---|:---|
-| **JVM Presets**: Instant optimization profiles (Potato - Extreme) | **Glassmorphism**: Sleek, modern UI with blur effects |
-| **Instance Isolation**: Sandbox your modpacks perfectly | **Hero Modes**: Cinematic installation experiences |
-| **Smart Offline**: Auto-fallback when disconnected | **Visual Polish**: Dynamic, responsive layouts |
+### 🎮 Instance Management
+- **Multiple Instances** - Create, duplicate, and manage separate game instances
+- **Instance Isolation** - Each instance has its own mods, saves, and configurations
+- **Import External Versions** - Import from TLauncher or other launchers
+- **Export Instances** - Export instances as .zip archives
 
-| **Advanced Tools** | **Developer Friendly** |
-|:---|:---|
-| **Java Manager**: Auto-detect & install runtimes (8, 17, 21) | **Open Plugin API**: Built on clean architecture |
-| **Crash Analysis**: Human-readable error reports | **Modern Stack**: React + Vite + Electron |
-| **Proxy Support**: Built-in HTTP/SOCKS options | **Cloud Sync**: Supabase integration ready |
+### 🛠️ Mod Support
+- **Mod Manager** - Browse and install mods easily
+- **Modpack Browser** - Browse and install modpacks
+- **Resource Packs** - Manage resource packs per instance
+- **Shader Packs** - Configure shader packs
+- **CustomSkinLoader** - Support for custom skins and capes
+- **Local Skins** - Import and use your own skin files
 
-<br/>
+### 🎨 User Experience
+- **Modern Dark UI** - Stunning glassmorphism design with blur effects
+- **Animations** - Smooth transitions (toggleable in settings)
+- **Resizable Window** - Flexible window sizing
+- **3D Skin Viewer** - Preview your skin in 3D
+- **Server Status** - Check any server's status
 
-## Tech Stack
+### ⚙️ Performance
+- **JVM Presets** - Instant optimization profiles:
+  - 🥔 **Potato** - Low-end, max 2GB RAM
+  - 📦 **Standard** - Balanced, 4GB RAM
+  - 🚀 **Pro** - Power user, 8GB RAM
+  - ⚡ **Extreme** - Peak power, 12GB+ RAM
+- **Custom JVM** - Full manual control for advanced users
+- **Java Manager** - Auto-detect and configure Java runtimes (8, 11, 16, 17, 21)
 
-Built with a cutting-edge stack for maximum performance and developer experience.
+### ☁️ Cloud Features
+- **Cloud Saves** - Sync your saves across devices (Whoap accounts)
+- **Screenshot Upload** - Upload and share screenshots
+- **Settings Sync** - Sync launcher settings
 
-- **Frontend**: ![React](https://img.shields.io/badge/-React-61DAFB?logo=react&logoColor=black) ![Vite](https://img.shields.io/badge/-Vite-646CFF?logo=vite&logoColor=white) ![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?logo=typescript&logoColor=white)
-- **Engine**: ![Electron](https://img.shields.io/badge/-Electron-47848F?logo=electron&logoColor=white)
-- **Backend Services**: ![Supabase](https://img.shields.io/badge/-Supabase-3ECF8E?logo=supabase&logoColor=white)
-- **Styling**: ![CSS Modules](https://img.shields.io/badge/-CSS%20Modules-000000?logo=cssmodules&logoColor=white) 
+### 🔗 Integrations
+- **Discord RPC** - Show what you're playing on Discord
+- **Proxy Support** - HTTP and SOCKS5 proxy support
+- **Microsoft Auth** - Official Microsoft account login
+- **Offline Mode** - Play without internet connection
 
-<br/>
+---
 
-## Quick Start
+## 🚀 Quick Start
 
-### 1. Installation
+### Prerequisites
+- [Node.js](https://nodejs.org/) (v18 or higher)
+- [Git](https://git-scm.com/)
+- Windows 10/11
+
+### Installation
 
 ```bash
-# Clone the repo
-git clone https://github.com/justdreno/Whoap-Launcher.git
-cd whoap
+# Clone the repository
+git clone https://github.com/justdreno/Whoap-Launcer.git
+cd Whoap-Launcer
 
 # Install dependencies
 npm install
-```
 
-### 2. Development
-
-Launch the development environment (React + Electron):
-
-```bash
+# Start development server
 npm run dev
 ```
 
-### 3. Build
-
-Create a production-ready installer for your OS:
+### Building
 
 ```bash
+# Build for production
 npm run build
 ```
+
+The installer will be generated in the `dist` folder.
+
+---
+
+## 📁 Project Structure
+
+```
+Whoap-Launcer/
+├── electron/           # Electron main process
+│   ├── main.ts         # App entry point
+│   ├── managers/       # Manager classes (updates, skins, etc.)
+│   └── launcher/       # Minecraft launch logic
+├── public/             # Static assets
+├── src/                # React frontend
+│   ├── api/           # API definitions
+│   ├── components/    # Reusable UI components
+│   ├── context/       # React contexts
+│   ├── layouts/       # Page layouts
+│   ├── pages/         # Page components
+│   ├── services/      # Business logic
+│   ├── utils/         # Utility functions
+│   └── assets/        # Images and icons
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
+```
+
+---
+
+## 🛠️ Tech Stack
+
+| Technology | Purpose |
+|------------|---------|
+| **React 19** | UI Framework |
+| **TypeScript** | Type Safety |
+| **Electron** | Desktop App Shell |
+| **Vite** | Build Tool |
+| **CSS Modules** | Styling |
+| **Supabase** | Cloud Backend |
+| **Minecraft Launcher Core** | Game Launching |
+
+---
+
+## 📝 Configuration
+
+### Game Path
+By default, Whoap uses `~/.minecraft` for game data. You can change this in Settings.
+
+### Java
+Whoap auto-detects installed Java versions. You can also manually configure paths for each version (8, 11, 16, 17, 21) in Settings.
+
+### JVM Arguments
+Choose from preset configurations or customize your own JVM arguments for optimal performance.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+---
+
+## 📜 Roadmap
+
+Check out our [Roadmap](./roadmap.md) to see what's coming next!
+
+---
+
+## 📧 Contact
+
+**Navidu** - [@justdreno](https://github.com/justdreno/whoap-Launcer)
+
+- 💬 **Discord**: https://dsc.gg/whoap
+- 🐛 **Issues**: https://github.com/justdreno/Whoap-Launcer/issues
 
 ---
 
 <div align="center">
 
-By **[Navidu Sathsara]**  
-*Built for the Minecraft Community*
+**Built with ❤️ by Navidu**
+
+*The Next Level Minecraft Launcher*
 
 </div>
