@@ -13,12 +13,13 @@ import styles from './Library.module.css';
 interface LibraryProps {
     user?: any;
     isOnline?: boolean;
+    preselectedInstanceId?: string | null;
 }
 
-type TabId = 'modpacks' | 'mods' | 'resourcepacks' | 'shaderpacks';
+type TabId = 'mods' | 'resourcepacks' | 'shaderpacks' | 'modpacks';
 
-export const Library: React.FC<LibraryProps> = () => {
-    const [activeTab, setActiveTab] = useState<TabId>('modpacks');
+export const Library: React.FC<LibraryProps> = ({ preselectedInstanceId: externalInstanceId }) => {
+    const [activeTab, setActiveTab] = useState<TabId>('mods');
     const [instances, setInstances] = useState<Instance[]>([]);
     const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
     const [showInstanceDropdown, setShowInstanceDropdown] = useState(false);
@@ -27,14 +28,28 @@ export const Library: React.FC<LibraryProps> = () => {
         loadInstances();
     }, []);
 
+    // Handle external instance selection
+    useEffect(() => {
+        if (externalInstanceId && instances.length > 0) {
+            const instanceExists = instances.find(i => i.id === externalInstanceId);
+            if (instanceExists) {
+                setSelectedInstanceId(externalInstanceId);
+            }
+        }
+    }, [externalInstanceId, instances]);
+
     const loadInstances = async () => {
         try {
             const list = await InstanceApi.list();
             setInstances(list);
-            // Default to first instance if none selected and list not empty
+            // Default to external instance if provided, otherwise first instance
             if (list.length > 0 && !selectedInstanceId) {
-                // Try to find a recently played one or just first
-                setSelectedInstanceId(list[0].id);
+                if (externalInstanceId) {
+                    const instanceExists = list.find(i => i.id === externalInstanceId);
+                    setSelectedInstanceId(instanceExists ? instanceExists.id : list[0].id);
+                } else {
+                    setSelectedInstanceId(list[0].id);
+                }
             }
         } catch (e) {
             console.error("Failed to load instances in Library", e);
@@ -44,10 +59,10 @@ export const Library: React.FC<LibraryProps> = () => {
     const selectedInstance = instances.find(i => i.id === selectedInstanceId);
 
     const tabs = [
-        { id: 'modpacks', label: 'Modpacks', icon: Globe },
         { id: 'mods', label: 'Mods', icon: Package },
         { id: 'resourcepacks', label: 'Resource Packs', icon: Layers },
         { id: 'shaderpacks', label: 'Shader Packs', icon: Sparkles },
+        { id: 'modpacks', label: 'Modpacks', icon: Globe },
     ] as const;
 
     const showInstanceSelector = activeTab !== 'modpacks';
@@ -119,10 +134,10 @@ export const Library: React.FC<LibraryProps> = () => {
             </div>
 
             <div className={styles.content}>
-                {activeTab === 'modpacks' && <ModpackBrowser hideHeader={true} />}
                 {activeTab === 'mods' && <ModsManager hideHeader={true} instanceId={selectedInstanceId} />}
                 {activeTab === 'resourcepacks' && <ResourcePacksManager hideHeader={true} instanceId={selectedInstanceId} />}
                 {activeTab === 'shaderpacks' && <ShaderPacksManager hideHeader={true} instanceId={selectedInstanceId} />}
+                {activeTab === 'modpacks' && <ModpackBrowser hideHeader={true} />}
             </div>
         </div>
     );

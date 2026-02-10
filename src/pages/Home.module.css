@@ -73,6 +73,142 @@
     }
 }
 
+/* ==================== ANIMATIONS ==================== */
+.noAnimations * {
+    animation: none !important;
+    transition: none !important;
+}
+
+.animateBlob {
+    animation: float 20s infinite alternate-reverse ease-in-out;
+}
+
+@keyframes fadeSlideUp {
+    0% {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeScaleIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes cardSlideUp {
+    0% {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulseGlow {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(255, 136, 0, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 0 40px rgba(255, 136, 0, 0.6);
+    }
+}
+
+.animateIn {
+    animation: fadeSlideUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animateOut {
+    opacity: 0;
+    transform: translateY(30px);
+}
+
+.delay0 {
+    animation-delay: 0ms;
+}
+
+.delay1 {
+    animation-delay: 100ms;
+}
+
+.delay2 {
+    animation-delay: 200ms;
+}
+
+.delay3 {
+    animation-delay: 300ms;
+}
+
+.delay4 {
+    animation-delay: 400ms;
+}
+
+.delay5 {
+    animation-delay: 500ms;
+}
+
+.headerWrapper {
+    animation: fadeSlideUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Stat Card Animations */
+.statCardAnimated {
+    animation: cardSlideUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    opacity: 0;
+}
+
+.statCardAnimated:nth-child(1) {
+    animation-delay: 0ms;
+}
+
+.statCardAnimated:nth-child(2) {
+    animation-delay: 100ms;
+}
+
+.statCardAnimated:nth-child(3) {
+    animation-delay: 200ms;
+}
+
+/* Server Card Animations */
+.serverCardAnimated {
+    animation: cardSlideUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    opacity: 0;
+}
+
+/* Mini Card Animations */
+.miniCardAnimated {
+    animation: cardSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    opacity: 0;
+}
+
+/* Hover Animations */
+.statCard:hover,
+.serverCard:hover,
+.miniCard:hover {
+    transform: translateY(-4px);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Play Button Pulse */
+.playBtn:not(.launching):hover {
+    animation: pulseGlow 1.5s infinite;
+}
+
 /* ==================== HERO SECTION ==================== */
 .hero {
     position: relative;
@@ -184,14 +320,44 @@
 
 /* ==================== ACTION BUTTON ==================== */
 .actionContainer {
-    width: 180px;
+    display: flex;
+    gap: 12px;
     margin-top: 16px;
     position: relative;
     z-index: 10;
 }
 
+.libBtn {
+    padding: 16px 24px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.libBtn:hover {
+    background: rgba(255, 170, 0, 0.15);
+    border-color: rgba(255, 170, 0, 0.5);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(255, 170, 0, 0.2);
+}
+
+.libBtn:active {
+    transform: translateY(0);
+}
+
 .playBtn {
-    width: 100%;
+    width: 180px;
     background: #ff8800;
     border: none;
     border-radius: 12px;

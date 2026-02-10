@@ -4,6 +4,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { ToastProvider } from './context/ToastContext'
 import { Toaster } from 'react-hot-toast'
 import { ConfirmProvider } from './context/ConfirmContext'
+import { AnimationProvider } from './context/AnimationContext'
 import { supabase } from './lib/supabase';
 import { Skeleton } from './components/Skeleton';
 import { perf } from './utils/PerformanceProfiler';
@@ -39,6 +40,7 @@ function App() {
     const [user, setUser] = useState<any>(null);
     const [checkingSession, setCheckingSession] = useState(true);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [selectedLibraryInstanceId, setSelectedLibraryInstanceId] = useState<string | null>(null);
 
     useEffect(() => {
         const handleStatusChange = () => {
@@ -236,25 +238,33 @@ function App() {
 
     return (
         <ErrorBoundary>
-            <ToastProvider>
-                <Toaster position="bottom-right" toastOptions={{ style: { background: '#1f2937', color: '#fff' } }} />
-                <ConfirmProvider>
-                    <JavaInstallModal />
-                    <MainLayout activeTab={activeTab} onTabChange={setActiveTab} user={user} onLogout={handleLogout}>
-                        {activeTab === 'home' && <Home user={user} setUser={setUser} />}
-                        <Suspense fallback={<PageLoader />}>
-                            {activeTab === 'profiles' && <Instances />}
-                            {activeTab === 'settings' && <Settings />}
-                            {activeTab === 'library' && <Library user={user} isOnline={isOnline} />}
-                            {activeTab === 'screenshots' && <Screenshots user={user} />}
-                            {activeTab === 'friends' && <Friends isOnline={isOnline} />}
-                            {activeTab === 'news' && <News />}
-                            {activeTab === 'admin' && <Admin user={user} />}
-                            {activeTab === 'profile' && <Profile user={user} setUser={setUser} />}
-                        </Suspense>
-                    </MainLayout>
-                </ConfirmProvider>
-            </ToastProvider >
+            <AnimationProvider>
+                <ToastProvider>
+                    <Toaster position="bottom-right" toastOptions={{ style: { background: '#1f2937', color: '#fff' } }} />
+                    <ConfirmProvider>
+                        <JavaInstallModal />
+                        <MainLayout activeTab={activeTab} onTabChange={setActiveTab} user={user} onLogout={handleLogout}>
+                            {activeTab === 'home' && <Home user={user} setUser={setUser} onNavigate={(tab, instanceId) => {
+                                    if (instanceId) setSelectedLibraryInstanceId(instanceId);
+                                    setActiveTab(tab);
+                                }} />}
+                            <Suspense fallback={<PageLoader />}>
+                                {activeTab === 'profiles' && <Instances onNavigate={(tab, instanceId) => {
+                                    if (instanceId) setSelectedLibraryInstanceId(instanceId);
+                                    setActiveTab(tab);
+                                }} />}
+                                {activeTab === 'settings' && <Settings />}
+                                {activeTab === 'library' && <Library user={user} isOnline={isOnline} preselectedInstanceId={selectedLibraryInstanceId} />}
+                                {activeTab === 'screenshots' && <Screenshots user={user} />}
+                                {activeTab === 'friends' && <Friends isOnline={isOnline} />}
+                                {activeTab === 'news' && <News />}
+                                {activeTab === 'admin' && <Admin user={user} />}
+                                {activeTab === 'profile' && <Profile user={user} setUser={setUser} />}
+                            </Suspense>
+                        </MainLayout>
+                    </ConfirmProvider>
+                </ToastProvider >
+            </AnimationProvider>
         </ErrorBoundary >
     );
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import styles from './Sidebar.module.css';
-import { Home, Settings, FolderOpen, Package, Users, Image, LogOut, Newspaper, Code, ShieldAlert, User } from 'lucide-react';
+import { Home, Settings, FolderOpen, Package, Image, LogOut, Newspaper, Code, ShieldAlert, User } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { UserAvatar } from './UserAvatar';
 import { useAuth } from '../context/AuthContext';
@@ -47,12 +47,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, user, 
             tabs: [
                 { id: 'library', label: 'Library', icon: Package },
                 { id: 'screenshots', label: 'Screenshots', icon: Image },
-            ]
-        },
-        {
-            name: 'Community',
-            tabs: [
-                { id: 'friends', label: 'Friends', icon: Users, beta: true },
             ]
         },
         {

@@ -18,12 +18,14 @@ import {
     Download,
     CheckCircle,
     Box,
-    Globe
+    Globe,
+    Sparkles
 } from 'lucide-react';
 import { VersionScannerModal } from '../components/VersionScannerModal';
 import { AccountManager } from '../utils/AccountManager';
 import { CloudManager } from '../utils/CloudManager';
 import { useToast } from '../context/ToastContext';
+import { useAnimation } from '../context/AnimationContext';
 import { ProcessingModal } from '../components/ProcessingModal';
 
 interface ProxyConfig {
@@ -61,6 +63,7 @@ export const Settings = () => {
     const [showResetModal, setShowResetModal] = useState(false);
     const [showVersionScanner, setShowVersionScanner] = useState(false);
     const { showToast } = useToast();
+    const { animationsEnabled, setAnimationsEnabled } = useAnimation();
 
     // Update states
     const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'>('idle');
@@ -426,6 +429,25 @@ export const Settings = () => {
                         </div>
                         <label className={styles.toggle}>
                             <input type="checkbox" checked={config.showConsoleOnLaunch} onChange={(e) => updateConfig('showConsoleOnLaunch', e.target.checked)} />
+                            <span className={styles.toggleSlider}></span>
+                        </label>
+                    </div>
+                </section>
+
+                {/* UI Preferences Section */}
+                <section className={styles.section}>
+                    <h3><Sparkles size={18} /> UI Preferences</h3>
+                    <div className={styles.settingRow}>
+                        <div className={styles.labelCol}>
+                            <span className={styles.label}>Enable Animations</span>
+                            <span className={styles.hint}>Toggle page animations and transitions.</span>
+                        </div>
+                        <label className={styles.toggle}>
+                            <input 
+                                type="checkbox" 
+                                checked={animationsEnabled} 
+                                onChange={(e) => setAnimationsEnabled(e.target.checked)} 
+                            />
                             <span className={styles.toggleSlider}></span>
                         </label>
                     </div>

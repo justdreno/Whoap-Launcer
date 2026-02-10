@@ -6,7 +6,7 @@ import { SystemService } from '../services/SystemService';
 export const TitleBar: React.FC = () => {
     const [isMaximized, setIsMaximized] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
-    const [version, setVersion] = useState('v1.0.0');
+    const [version, setVersion] = useState('v2.3.7');
 
     const handleClose = () => window.ipcRenderer.send('window:close');
     const handleMinimize = () => window.ipcRenderer.send('window:minimize');
@@ -30,8 +30,8 @@ export const TitleBar: React.FC = () => {
         };
     }, []);
 
-    const openDiscord = () => window.open('https://discord.gg/', '_blank');
-    const openGithub = () => window.open('https://github.com/', '_blank');
+    const openDiscord = () => window.open('https://dsc.gg/whoap', '_blank');
+    const openGithub = () => window.open('https://github.com/justdreno/Whoap-Launcer', '_blank');
 
     return (
         <div
@@ -43,14 +43,7 @@ export const TitleBar: React.FC = () => {
             <div className={`${styles.glowEffect} ${isHovered ? styles.glowActive : ''}`} />
 
             <div className={styles.left}>
-                <div className={styles.logoContainer}>
-                    <div className={styles.logoGlow} />
-                    <span className={styles.logoIcon}>W</span>
-                </div>
-                <div className={styles.titleGroup}>
-                    <span className={styles.title}>Whoap</span>
-                    <span className={styles.version}>{version}</span>
-                </div>
+                <span className={styles.version}>{version}</span>
             </div>
 
             <div className={`${styles.center} no-drag`}>

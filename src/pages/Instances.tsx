@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../components/PageHeader';
-import { Settings, RefreshCw, FolderOpen, Clock, Star } from 'lucide-react';
+import { Settings, RefreshCw, FolderOpen, Clock, Star, Library } from 'lucide-react';
 import { Instance, InstanceApi } from '../api/instances';
 import { CreateInstanceModal } from '../components/CreateInstanceModal';
 import { InstanceSettingsModal } from '../components/InstanceSettingsModal';
@@ -13,9 +13,10 @@ import { useToast } from '../context/ToastContext';
 
 interface InstancesProps {
     onSelectInstance?: (instance: Instance) => void;
+    onNavigate?: (tab: string, instanceId?: string) => void;
 }
 
-export const Instances: React.FC<InstancesProps> = ({ onSelectInstance }) => {
+export const Instances: React.FC<InstancesProps> = ({ onSelectInstance, onNavigate }) => {
     const [instances, setInstances] = useState<Instance[]>([]);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -179,29 +180,24 @@ export const Instances: React.FC<InstancesProps> = ({ onSelectInstance }) => {
 
                                 <div className={styles.playOverlay}>
                                     <div style={{ marginRight: 'auto', display: 'flex', gap: 8 }}>
-                                        {/* Future expansion: mod count, etc */}
+                                        <button
+                                            className={styles.libBtn}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onNavigate?.('library', instance.id);
+                                            }}
+                                            title="Open Library"
+                                        >
+                                            <Library size={20} />
+                                        </button>
                                     </div>
                                     <button
-                                        className={styles.settingsBtnRedesign}
+                                        className={styles.settingsBtn}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setSettingsInstance(instance);
                                         }}
                                         title="Settings"
-                                        style={{
-                                            background: 'rgba(255, 255, 255, 0.1)',
-                                            backdropFilter: 'blur(10px)',
-                                            borderRadius: '12px',
-                                            width: 40,
-                                            height: 40,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            border: '1px solid rgba(255,255,255,0.1)',
-                                            cursor: 'pointer',
-                                            color: 'white',
-                                            transition: 'all 0.2s'
-                                        }}
                                     >
                                         <Settings size={20} />
                                     </button>

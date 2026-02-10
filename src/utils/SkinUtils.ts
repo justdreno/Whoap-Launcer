@@ -9,7 +9,7 @@ export const SkinUtils = {
         return lower.startsWith('file:') ||
             lower.startsWith('whoap-skin://') ||
             lower.startsWith('whoap-cape://') ||
-            lower.includes('.png'); // Use includes instead of endsWith to handle query params
+            (lower.endsWith('.png') && !lower.startsWith('http'));
     },
 
     /**
@@ -17,7 +17,12 @@ export const SkinUtils = {
      */
     getFileName(name: string | undefined): string {
         if (!name) return '';
-        return name.replace('file:', '');
+        return name
+            .replace('file:', '')
+            .replace('whoap-skin://', '')
+            .replace('whoap-cape://', '')
+            .split('?')[0] // Remove query params
+            .replace(/[\\/]+$/, ''); // Remove trailing slashes
     },
 
     /**

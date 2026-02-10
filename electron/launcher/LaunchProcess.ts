@@ -677,10 +677,10 @@ export class LaunchProcess {
 
                 // Show log window if enabled
                 if (showConsole) {
-                    LogWindowManager.create();
-                    LogWindowManager.send(`Starting ${instanceId} (${versionId})...`, 'info');
-                    LogWindowManager.send(`Java: ${javaPath}`, 'info');
-                    LogWindowManager.send(`RAM: ${minRam}MB - ${maxRam}MB`, 'info');
+                    LogWindowManager.create(instanceId);
+                    LogWindowManager.send(instanceId, `Starting ${instanceId} (${versionId})...`, 'info');
+                    LogWindowManager.send(instanceId, `Java: ${javaPath}`, 'info');
+                    LogWindowManager.send(instanceId, `RAM: ${minRam}MB - ${maxRam}MB`, 'info');
                 }
 
                 // Use javaw.exe on windows to avoid console window creation
@@ -719,19 +719,25 @@ export class LaunchProcess {
                 gameProcess.stdout.on('data', (d) => {
                     const str = d.toString();
                     appendLog(str);
-                    LogWindowManager.send(str, 'stdout');
+                    if (showConsole) {
+                        LogWindowManager.send(instanceId, str, 'stdout');
+                    }
                 });
 
                 gameProcess.stderr.on('data', (d) => {
                     const str = d.toString();
                     appendLog(str);
-                    LogWindowManager.send(str, 'stderr');
+                    if (showConsole) {
+                        LogWindowManager.send(instanceId, str, 'stderr');
+                    }
                 });
 
                 gameProcess.on('error', (err) => {
                     console.error("Failed to start game process", err);
                     event.sender.send('launch:error', err.message);
-                    LogWindowManager.send(`Launch Error: ${err.message}`, 'stderr');
+                    if (showConsole) {
+                        LogWindowManager.send(instanceId, `Launch Error: ${err.message}`, 'stderr');
+                    }
                     mainWindow?.show();
                 });
 
@@ -803,90 +809,127 @@ export class LaunchProcess {
         });
     }
 
+    /**
+     * Copies a skin or cape source file to a target path.
+     * Handles both custom imported files (file: prefix) and username-based downloads.
+     */
+    private async deploySkinFile(
+        skinSource: string,
+        targetFile: string,
+        type: 'skin' | 'cape'
+    ): Promise<boolean> {
+        try {
+            // Strip any trailing slashes or query params from source
+            const normalizedSource = skinSource.split('?')[0].replace(/[\\/]+$/, '');
+
+            // Determine if it's a custom/local file
+            const lower = normalizedSource.toLowerCase();
+            const isCustom = lower.startsWith('file:') ||
+                lower.startsWith('whoap-skin://') ||
+                lower.startsWith('whoap-cape://') ||
+                (lower.endsWith('.png') && !lower.startsWith('http'));
+
+            if (isCustom) {
+                const fileName = normalizedSource
+                    .replace('file:', '')
+                    .replace('whoap-skin://', '')
+                    .replace('whoap-cape://', '');
+
+                const subDir = type === 'skin' ? 'skins' : 'capes';
+                const srcPath = path.join(app.getPath('userData'), subDir, fileName);
+
+                if (fs.existsSync(srcPath)) {
+                    fs.copyFileSync(srcPath, targetFile);
+                    console.log(`[Launch] Deployed custom ${type}: "${fileName}" -> "${targetFile}"`);
+                    return true;
+                } else {
+                    console.warn(`[Launch] Custom ${type} source NOT FOUND: "${srcPath}"`);
+                    return false;
+                }
+            } else if (type === 'skin') {
+                // Username — download skin texture from mc-heads.net
+                const skinUrl = `https://mc-heads.net/skin/${encodeURIComponent(skinSource)}`;
+                console.log(`[Launch] Downloading remote skin for "${skinSource}"...`);
+                await this.downloadFile(skinUrl, targetFile);
+                console.log(`[Launch] Downloaded skin to: "${targetFile}"`);
+                return true;
+            }
+        } catch (e) {
+            console.warn(`[Launch] Exception during ${type} deployment for "${skinSource}":`, e);
+        }
+        return false;
+    }
+
     private async ensureSkinConfig(instancePath: string, authData?: any) {
         try {
+            const mcUsername = authData?.name || authData?.username || "Steve";
+            const skinSource = authData?.preferredSkin || mcUsername;
+            const capeSource = authData?.preferredCape;
+
+            console.log(`[Launch] --- Skin/Cape Debug ---`);
+            console.log(`[Launch] MC Username: ${mcUsername}`);
+            console.log(`[Launch] Skin Source: ${skinSource}`);
+            console.log(`[Launch] Cape Source: ${capeSource || 'NONE'}`);
+
+            // 1. Detect Mods/Existing Folders to avoid clutter
             const modsDir = path.join(instancePath, 'mods');
-            if (!fs.existsSync(modsDir)) return;
+            let hasCSL = false;
 
-            // Check if OfflineSkins or CustomSkinLoader is installed
-            const files = await fs.promises.readdir(modsDir);
-            const hasSkinMod = files.some(f =>
-                f.toLowerCase().includes('offlineskins') ||
-                f.toLowerCase().includes('customskinloader')
-            );
+            if (fs.existsSync(modsDir)) {
+                try {
+                    const files = await fs.promises.readdir(modsDir);
+                    const filesLower = files.map(f => f.toLowerCase());
+                    hasCSL = filesLower.some(f => f.includes('customskinloader'));
+                } catch (e) {
+                    console.warn("[Launch] Failed to scan mods folder:", e);
+                }
+            }
 
-            if (hasSkinMod) {
+            // Also check for existing folders (even if mod isn't in 'mods' - e.g. embedded or different name)
+            const cslDir = path.join(instancePath, 'CustomSkinLoader');
+
+            if (!hasCSL && fs.existsSync(cslDir)) hasCSL = true;
+
+            // 2. Build deployment targets based on detected mods
+            const deployTargets: { skinsDir: string, capesDir: string, label: string }[] = [];
+
+            if (hasCSL) {
+                deployTargets.push({
+                    skinsDir: path.join(cslDir, 'LocalSkins', 'skins'),
+                    capesDir: path.join(cslDir, 'LocalSkins', 'capes'),
+                    label: 'CustomSkinLoader'
+                });
+            }
+
+            if (deployTargets.length === 0) {
+                console.log("[Launch] No skin mods detected for this instance, skipping local skin deployment.");
+                return;
+            }
+
+            console.log(`[Launch] Deploying to: ${deployTargets.map(t => t.label).join(', ')}`);
+
+            // Deploy skin
+            if (skinSource) {
+                for (const target of deployTargets) {
+                    if (!fs.existsSync(target.skinsDir)) fs.mkdirSync(target.skinsDir, { recursive: true });
+                    const targetFile = path.join(target.skinsDir, `${mcUsername}.png`);
+                    await this.deploySkinFile(skinSource, targetFile, 'skin');
+                }
+            }
+
+            // Deploy cape
+            if (capeSource) {
+                for (const target of deployTargets) {
+                    if (!fs.existsSync(target.capesDir)) fs.mkdirSync(target.capesDir, { recursive: true });
+                    const targetFile = path.join(target.capesDir, `${mcUsername}.png`);
+                    await this.deploySkinFile(capeSource, targetFile, 'cape');
+                }
+            }
+
+            // --- Configure CustomSkinLoader JSON ---
+            if (hasCSL) {
                 const configDir = path.join(instancePath, 'CustomSkinLoader');
                 if (!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true });
-
-                // Determine target username for the file (the player's in-game name)
-                const targetUsername = authData?.name || authData?.username || "Steve";
-                const skinSource = authData?.preferredSkin || targetUsername;
-
-                if (skinSource) {
-                    const localSkinRoot = path.join(configDir, 'LocalSkin');
-                    const skinsDir = path.join(localSkinRoot, 'skins');
-
-                    if (!fs.existsSync(skinsDir)) fs.mkdirSync(skinsDir, { recursive: true });
-
-                    // Always save as {username}.png so CustomSkinLoader finds it for the active player
-                    const targetFile = path.join(skinsDir, `${targetUsername}.png`);
-
-                    try {
-                        if (skinSource.startsWith('file:')) {
-                            // Custom imported skin — copy from appData/skins/
-                            const fileName = skinSource.replace('file:', '');
-                            const srcPath = path.join(app.getPath('userData'), 'skins', fileName);
-
-                            if (fs.existsSync(srcPath)) {
-                                fs.copyFileSync(srcPath, targetFile);
-                                console.log(`[Launch] Copied custom skin "${fileName}" to LocalSkin/skins/${targetUsername}.png`);
-                            } else {
-                                console.warn(`[Launch] Custom skin file not found: ${srcPath}`);
-                            }
-                        } else {
-                            // Username — download skin texture from mc-heads.net
-                            const skinUrl = `https://mc-heads.net/skin/${encodeURIComponent(skinSource)}`;
-                            console.log(`[Launch] Downloading skin for "${skinSource}"...`);
-                            await this.downloadFile(skinUrl, targetFile);
-                            console.log(`[Launch] Downloaded skin for "${skinSource}" to LocalSkin/skins/${targetUsername}.png`);
-                        }
-                    } catch (e) {
-                        console.warn(`[Launch] Failed to prepare skin texture for "${skinSource}":`, e);
-                    }
-                } else {
-                    console.log("[Launch] No skin source provided, skipping local skin preparation.");
-                }
-
-                // Handle Cape
-                const capeSource = authData?.preferredCape;
-                if (capeSource) {
-                    const localSkinRoot = path.join(configDir, 'LocalSkin');
-                    const capesDir = path.join(localSkinRoot, 'capes');
-                    if (!fs.existsSync(capesDir)) fs.mkdirSync(capesDir, { recursive: true });
-
-                    const targetFile = path.join(capesDir, `${targetUsername}.png`);
-
-                    try {
-                        if (capeSource.startsWith('file:')) {
-                            // Custom imported cape — copy from appData/capes/
-                            const fileName = capeSource.replace('file:', '');
-                            const srcPath = path.join(app.getPath('userData'), 'capes', fileName);
-
-                            if (fs.existsSync(srcPath)) {
-                                fs.copyFileSync(srcPath, targetFile);
-                                console.log(`[Launch] Copied custom cape "${fileName}" to LocalSkin/capes/${targetUsername}.png`);
-                            } else {
-                                console.warn(`[Launch] Custom cape file not found: ${srcPath}`);
-                            }
-                        }
-                        // We don't download capes from usernames for now as there's no reliable "get cape png" endpoint 
-                        // that matches the skin one perfectly without authentication or UUIDs.
-                        // Users can just import the file if they have it.
-                    } catch (e) {
-                        console.warn(`[Launch] Failed to prepare cape texture for "${capeSource}":`, e);
-                    }
-                }
 
                 const configPath = path.join(configDir, 'CustomSkinLoader.json');
 
@@ -896,21 +939,21 @@ export class LaunchProcess {
                     "root": "https://skins.whoap.gg/"
                 };
 
-                const localSkinSource = {
+                const localSkinEntry = {
                     "name": "LocalSkin",
                     "type": "Legacy",
-                    "root": "LocalSkin/",
+                    "root": "./",
                     "checkPNG": false,
-                    "skin": "skins/{USERNAME}.png", // Fixed path: relative to root
+                    "skin": "LocalSkins/skins/{USERNAME}.png",
                     "model": "auto",
-                    "cape": "capes/{USERNAME}.png", // Fixed path: relative to root
-                    "elytra": "elytras/{USERNAME}.png"
+                    "cape": "LocalSkins/capes/{USERNAME}.png",
+                    "elytra": "LocalSkins/elytras/{USERNAME}.png"
                 };
 
                 let config: any = {
                     "enable": true,
                     "loadlist": [
-                        localSkinSource,
+                        localSkinEntry,
                         whoapServer,
                         {
                             "name": "Mojang",
@@ -919,26 +962,20 @@ export class LaunchProcess {
                     ]
                 };
 
-                // If config exists, we merge carefully
                 if (fs.existsSync(configPath)) {
                     try {
                         const existing = JSON.parse(fs.readFileSync(configPath, 'utf8'));
                         if (existing.loadlist && Array.isArray(existing.loadlist)) {
-                            const hasWhoap = existing.loadlist.some((e: any) => e.name === "Whoap Skin Server");
-                            const hasLocal = existing.loadlist.some((e: any) => e.name === "LocalSkin");
-
-                            if (!hasWhoap || !hasLocal) {
-                                // Add missing entries to top
-                                if (!hasLocal) existing.loadlist.unshift(localSkinSource);
-                                if (!hasWhoap) existing.loadlist.splice(1, 0, whoapServer);
-                                config = existing;
-                            } else {
-                                // Already fully configured, just ensure config is written (skin file updated above)
-                                return;
-                            }
+                            // Remove stale LocalSkin and Whoap entries, then re-add at top
+                            const filtered = existing.loadlist.filter(
+                                (e: any) => e.name !== "LocalSkin" && e.name !== "Whoap Skin Server"
+                            );
+                            existing.loadlist = [localSkinEntry, whoapServer, ...filtered];
+                            config = existing;
                         }
                     } catch (e) {
-                        // Corrupt config, overwrite
+                        // Corrupt config, overwrite with fresh one
+                        console.warn("[Launch] Corrupt CSL config, overwriting...");
                     }
                 }
 

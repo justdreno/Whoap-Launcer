@@ -1,48 +1,64 @@
 import { BrowserWindow, ipcMain, app } from 'electron';
 import path from 'path';
 
+interface LogWindowData {
+    window: BrowserWindow;
+    messageBuffer: { message: string, type: string }[];
+    isReady: boolean;
+}
+
 export class LogWindowManager {
-    private static logWindow: BrowserWindow | null = null;
-    private static messageBuffer: { message: string, type: string }[] = [];
-    private static isReady = false;
+    private static logWindows: Map<string, LogWindowData> = new Map();
 
     constructor() {
         this.registerListeners();
     }
 
     private registerListeners() {
-        ipcMain.on('log-window-minimize', () => {
-            if (LogWindowManager.logWindow && !LogWindowManager.logWindow.isDestroyed()) {
-                LogWindowManager.logWindow.minimize();
+        // Handle minimize/close for specific windows
+        ipcMain.on('log-window-minimize', (event) => {
+            const window = BrowserWindow.fromWebContents(event.sender);
+            if (window && !window.isDestroyed()) {
+                window.minimize();
             }
         });
 
-        ipcMain.on('log-window-close', () => {
-            if (LogWindowManager.logWindow && !LogWindowManager.logWindow.isDestroyed()) {
-                LogWindowManager.logWindow.close();
+        ipcMain.on('log-window-close', (event) => {
+            const window = BrowserWindow.fromWebContents(event.sender);
+            if (window && !window.isDestroyed()) {
+                window.close();
             }
         });
 
         // Frontend signals it is ready to receive logs
-        ipcMain.on('log-window-ready', () => {
-            LogWindowManager.isReady = true;
-            LogWindowManager.flushBuffer();
+        ipcMain.on('log-window-ready', (event) => {
+            const window = BrowserWindow.fromWebContents(event.sender);
+            if (window) {
+                // Find which instance this window belongs to
+                for (const [instanceId, data] of LogWindowManager.logWindows.entries()) {
+                    if (data.window === window) {
+                        data.isReady = true;
+                        LogWindowManager.flushBuffer(instanceId);
+                        break;
+                    }
+                }
+            }
         });
     }
 
-    static create() {
-        if (LogWindowManager.logWindow && !LogWindowManager.logWindow.isDestroyed()) {
-            LogWindowManager.logWindow.focus();
+    static create(instanceId: string) {
+        // If window already exists for this instance, just focus it
+        const existingData = LogWindowManager.logWindows.get(instanceId);
+        if (existingData && !existingData.window.isDestroyed()) {
+            existingData.window.focus();
             return;
         }
 
-        LogWindowManager.isReady = false; // Reset ready state
-
-        LogWindowManager.logWindow = new BrowserWindow({
+        const logWindow = new BrowserWindow({
             width: 900,
             height: 600,
             backgroundColor: '#111',
-            title: 'Game Output',
+            title: `Game Output - ${instanceId}`,
             frame: false, // Frameless
             autoHideMenuBar: true,
             icon: path.join(__dirname, '../public/favicon.ico'),
@@ -148,36 +164,55 @@ export class LogWindowManager {
             </html>
         `;
 
-        LogWindowManager.logWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(logHtml)}`);
+        logWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(logHtml)}`);
 
-        LogWindowManager.logWindow.on('closed', () => {
-            LogWindowManager.logWindow = null;
-            LogWindowManager.isReady = false;
+        logWindow.on('closed', () => {
+            LogWindowManager.logWindows.delete(instanceId);
+        });
+
+        // Store the new window data
+        LogWindowManager.logWindows.set(instanceId, {
+            window: logWindow,
+            messageBuffer: [],
+            isReady: false
         });
     }
 
-    static send(message: string, type: 'stdout' | 'stderr' | 'info' = 'stdout') {
-        if (LogWindowManager.logWindow && !LogWindowManager.logWindow.isDestroyed() && LogWindowManager.isReady) {
-            LogWindowManager.logWindow.webContents.send('game:log', { message, type });
-        } else {
-            LogWindowManager.messageBuffer.push({ message, type });
+    static send(instanceId: string, message: string, type: 'stdout' | 'stderr' | 'info' = 'stdout') {
+        const data = LogWindowManager.logWindows.get(instanceId);
+        if (data && !data.window.isDestroyed() && data.isReady) {
+            data.window.webContents.send('game:log', { message, type });
+        } else if (data) {
+            data.messageBuffer.push({ message, type });
         }
     }
 
-    static flushBuffer() {
-        if (!LogWindowManager.logWindow || LogWindowManager.logWindow.isDestroyed()) return;
+    static flushBuffer(instanceId: string) {
+        const data = LogWindowManager.logWindows.get(instanceId);
+        if (!data || data.window.isDestroyed()) return;
 
-        while (LogWindowManager.messageBuffer.length > 0) {
-            const item = LogWindowManager.messageBuffer.shift();
+        while (data.messageBuffer.length > 0) {
+            const item = data.messageBuffer.shift();
             if (item) {
-                LogWindowManager.logWindow.webContents.send('game:log', item);
+                data.window.webContents.send('game:log', item);
             }
         }
     }
 
-    static close() {
-        if (LogWindowManager.logWindow && !LogWindowManager.logWindow.isDestroyed()) {
-            LogWindowManager.logWindow.close();
+    static close(instanceId: string) {
+        const data = LogWindowManager.logWindows.get(instanceId);
+        if (data && !data.window.isDestroyed()) {
+            data.window.close();
         }
+        LogWindowManager.logWindows.delete(instanceId);
+    }
+
+    static closeAll() {
+        for (const [instanceId, data] of LogWindowManager.logWindows.entries()) {
+            if (!data.window.isDestroyed()) {
+                data.window.close();
+            }
+        }
+        LogWindowManager.logWindows.clear();
     }
 }

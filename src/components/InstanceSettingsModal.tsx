@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { X, Edit2, Copy, Archive, Folder, Trash2 } from 'lucide-react';
+import { X, Edit2, Copy, Archive, Folder, Trash2, Users, Send } from 'lucide-react';
 import styles from './InstanceSettingsModal.module.css';
 import { Instance, InstanceApi } from '../api/instances';
 import { useConfirm } from '../context/ConfirmContext';
 import { AccountManager } from '../utils/AccountManager';
 import { useToast } from '../context/ToastContext';
 import { CloudManager } from '../utils/CloudManager';
-import { Users, Send } from 'lucide-react';
 
 interface InstanceSettingsModalProps {
     instance: Instance;
@@ -28,11 +27,9 @@ export const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({
     const [selectedFriendId, setSelectedFriendId] = useState<string>('');
     const user = AccountManager.getActive();
 
-    // Only allow renaming if it's a created instance (has instance.json)
     const [actionState, setActionState] = useState<'idle' | 'renaming' | 'duplicating'>('idle');
     const [inputValue, setInputValue] = useState('');
 
-    // Only allow renaming if it's a created instance (has instance.json)
     const canRename = instance.type === 'created';
 
     const startRename = () => {
@@ -113,10 +110,8 @@ export const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({
         if (shouldDelete) {
             setDeleting(true);
             try {
-                // 1. Delete Local
                 await InstanceApi.delete(instance.id);
 
-                // 2. Delete Cloud (if whoap account)
                 const activeAccount = AccountManager.getActive();
                 if (activeAccount && activeAccount.type === 'whoap') {
                     await window.ipcRenderer.invoke('cloud:delete-instance', instance.name, activeAccount.uuid);
@@ -179,59 +174,78 @@ export const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({
                             <span className={styles.badge}>{instance.loader}</span>
                         </div>
                     </div>
-                    <button className={styles.closeParams} onClick={onClose}>
-                        <X size={20} />
+                    <button className={styles.closeBtn} onClick={onClose}>
+                        <X size={18} />
                     </button>
                 </div>
+
+                <div className={styles.sectionDivider} />
 
                 <div className={styles.body}>
                     {actionState !== 'idle' ? (
                         <div className={styles.inputForm}>
                             <label>{actionState === 'renaming' ? 'Rename Instance' : 'Duplicate Instance'}</label>
-                            <input
-                                type="text"
-                                value={inputValue}
-                                onChange={e => setInputValue(e.target.value)}
-                                autoFocus
-                                onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                            />
+                            <div className={styles.inputWrapper}>
+                                <input
+                                    type="text"
+                                    value={inputValue}
+                                    onChange={e => setInputValue(e.target.value)}
+                                    autoFocus
+                                    onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                                    placeholder={actionState === 'renaming' ? 'Enter new name...' : 'Enter copy name...'}
+                                />
+                            </div>
                             <div className={styles.formActions}>
-                                <button className={styles.cancelBtn} onClick={() => setActionState('idle')}>Cancel</button>
+                                <button className={styles.cancelBtn} onClick={() => setActionState('idle')}>
+                                    Cancel
+                                </button>
                                 <button className={styles.confirmBtn} onClick={handleSubmit}>
                                     {actionState === 'renaming' ? 'Save' : 'Duplicate'}
                                 </button>
                             </div>
                         </div>
                     ) : (
-                        <div className={styles.actionsGrid}>
-                            <button
-                                className={styles.actionBtn}
-                                onClick={startRename}
-                                style={{ opacity: canRename ? 1 : 0.5, cursor: canRename ? 'pointer' : 'not-allowed' }}
-                                title={canRename ? "Rename Instance" : "Cannot rename external instance"}
-                            >
-                                <Edit2 size={18} />
-                                <span>Rename</span>
-                            </button>
-                            <button className={styles.actionBtn} onClick={startDuplicate}>
-                                <Copy size={18} />
-                                <span>Duplicate</span>
-                            </button>
-                            <button className={styles.actionBtn} onClick={handleExport}>
-                                <Archive size={18} />
-                                <span>Export (.zip)</span>
-                            </button>
-                            <button className={styles.actionBtn} onClick={handleOpenFolder}>
-                                <Folder size={18} />
-                                <span>Open Folder</span>
-                            </button>
-                            {user?.type === 'whoap' && (
-                                <button className={styles.actionBtn} onClick={handleShare}>
-                                    <Users size={18} />
-                                    <span>Share</span>
+                        <>
+                            <div className={styles.actionsSection}>
+                                <div className={styles.sectionLabel}>Actions</div>
+                                <div className={styles.actionsGrid}>
+                                    <button
+                                        className={`${styles.actionBtn} ${!canRename ? styles.disabled : ''}`}
+                                        onClick={startRename}
+                                        title={canRename ? "Rename Instance" : "Cannot rename external instance"}
+                                    >
+                                        <Edit2 size={18} />
+                                        <span>Rename</span>
+                                    </button>
+                                    <button className={styles.actionBtn} onClick={startDuplicate}>
+                                        <Copy size={18} />
+                                        <span>Duplicate</span>
+                                    </button>
+                                    <button className={styles.actionBtn} onClick={handleExport}>
+                                        <Archive size={18} />
+                                        <span>Export (.zip)</span>
+                                    </button>
+                                    <button className={styles.actionBtn} onClick={handleOpenFolder}>
+                                        <Folder size={18} />
+                                        <span>Open Folder</span>
+                                    </button>
+                                    {user?.type === 'whoap' && (
+                                        <button className={styles.actionBtn} onClick={handleShare}>
+                                            <Users size={18} />
+                                            <span>Share</span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className={styles.dangerSection}>
+                                <div className={styles.dangerLabel}>Danger Zone</div>
+                                <button className={styles.deleteBtn} onClick={handleDelete} disabled={deleting}>
+                                    <Trash2 size={18} />
+                                    {deleting ? 'Deleting...' : 'Delete Instance'}
                                 </button>
-                            )}
-                        </div>
+                            </div>
+                        </>
                     )}
 
                     {sharing && (
@@ -239,9 +253,13 @@ export const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({
                             <div className={styles.shareBox}>
                                 <h3>Share with Friend</h3>
                                 {loadingFriends ? (
-                                    <div style={{ padding: 20, textAlign: 'center' }}>Loading friends...</div>
+                                    <div style={{ padding: 20, textAlign: 'center', color: '#71717a' }}>
+                                        Loading friends...
+                                    </div>
                                 ) : friends.length === 0 ? (
-                                    <div style={{ padding: 20, textAlign: 'center' }}>No friends found.</div>
+                                    <div style={{ padding: 20, textAlign: 'center', color: '#71717a' }}>
+                                        No friends found.
+                                    </div>
                                 ) : (
                                     <div className={styles.friendList}>
                                         {friends.map(f => (
@@ -250,14 +268,16 @@ export const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({
                                                 className={`${styles.friendItem} ${selectedFriendId === f.id ? styles.selected : ''}`}
                                                 onClick={() => setSelectedFriendId(f.id)}
                                             >
-                                                <img src={`https://mc-heads.net/avatar/${f.username}/24`} alt="" />
+                                                <img src={`https://mc-heads.net/avatar/${f.username}/28`} alt="" />
                                                 <span>{f.username}</span>
                                             </div>
                                         ))}
                                     </div>
                                 )}
                                 <div className={styles.shareActions}>
-                                    <button className={styles.cancelBtn} onClick={() => setSharing(false)}>Cancel</button>
+                                    <button className={styles.cancelBtn} onClick={() => setSharing(false)}>
+                                        Cancel
+                                    </button>
                                     <button
                                         className={styles.confirmBtn}
                                         onClick={confirmShare}
@@ -269,13 +289,6 @@ export const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({
                             </div>
                         </div>
                     )}
-
-                    <div className={styles.dangerZone}>
-                        <button className={styles.deleteBtn} onClick={handleDelete} disabled={deleting}>
-                            <Trash2 size={18} />
-                            {deleting ? 'Deleting...' : 'Delete Instance'}
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>

@@ -8,6 +8,7 @@ import { ChevronDown, Rocket, Clock, Layers, Star, Globe, Search, Wifi, WifiOff,
 import heroBg from '../assets/background.png';
 import loginBg from '../assets/login_bg.png';
 import { useToast } from '../context/ToastContext';
+import { useAnimation } from '../context/AnimationContext';
 import { SkinViewer3D } from '../components/SkinViewer3D';
 import { CreateInstanceModal } from '../components/CreateInstanceModal';
 import { ServerService, FeaturedServer } from '../services/ServerService';
@@ -19,9 +20,10 @@ interface HomeProps {
         token: string;
     };
     setUser?: (user: any) => void;
+    onNavigate?: (tab: string, instanceId?: string) => void;
 }
 
-export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
+export const Home: React.FC<HomeProps> = ({ user, setUser, onNavigate }) => {
     const [instances, setInstances] = React.useState<Instance[]>([]);
     const [selectedInstance, setSelectedInstance] = React.useState<Instance | null>(null);
     const [showInstanceDropdown, setShowInstanceDropdown] = React.useState(false);
@@ -29,7 +31,9 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
     const [showCreateModal, setShowCreateModal] = React.useState(false);
     const [searchQuery, setSearchQuery] = React.useState('');
     const [showSearch, setShowSearch] = React.useState(false);
+    const [isVisible, setIsVisible] = React.useState(false);
     const { showToast } = useToast();
+    const { animationsEnabled } = useAnimation();
 
     // Launch State
     const [isLaunching, setIsLaunching] = React.useState(false);
@@ -89,6 +93,16 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
             // Cleanup listener if possible
         }
     }, []);
+
+    // Animation entrance effect
+    React.useEffect(() => {
+        if (animationsEnabled) {
+            const timer = setTimeout(() => setIsVisible(true), 50);
+            return () => clearTimeout(timer);
+        } else {
+            setIsVisible(true);
+        }
+    }, [animationsEnabled]);
 
     const handleToggleFavorite = async (e: React.MouseEvent, inst: Instance) => {
         e.stopPropagation();
@@ -198,22 +212,29 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
     );
 
 
+    const getAnimationClass = (baseClass: string, delay: number = 0) => {
+        if (!animationsEnabled) return baseClass;
+        return `${baseClass} ${isVisible ? styles.animateIn : styles.animateOut} ${styles[`delay${delay}`] || ''}`;
+    };
+
     return (
-        <div className={styles.container}>
+        <div className={`${styles.container} ${!animationsEnabled ? styles.noAnimations : ''}`}>
             {/* Background Decorations */}
             <div className={styles.bgDecorations}>
-                <div className={`${styles.blob} ${styles.blob1}`} />
-                <div className={`${styles.blob} ${styles.blob2}`} />
-                <div className={`${styles.blob} ${styles.blob3}`} />
+                <div className={`${styles.blob} ${styles.blob1} ${animationsEnabled ? styles.animateBlob : ''}`} />
+                <div className={`${styles.blob} ${styles.blob2} ${animationsEnabled ? styles.animateBlob : ''}`} />
+                <div className={`${styles.blob} ${styles.blob3} ${animationsEnabled ? styles.animateBlob : ''}`} />
             </div>
 
-            <PageHeader
-                title="Home"
-                description={`Welcome back, ${user.name}. Ready for your next adventure?`}
-            />
+            <div className={getAnimationClass(styles.headerWrapper, 0)}>
+                <PageHeader
+                    title="Home"
+                    description={`Welcome back, ${user.name}. Ready for your next adventure?`}
+                />
+            </div>
 
             {/* Hero Section */}
-            <div className={styles.hero}>
+            <div className={`${styles.hero} ${getAnimationClass('', 1)}`}>
                 {/* Background Image with Fade */}
                 <div className={styles.heroBg} style={{ backgroundImage: `url(${heroBg})` }}></div>
                 <div className={styles.heroContent}>
@@ -376,6 +397,15 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
                                 </>
                             )}
                         </button>
+                        {selectedInstance && (
+                            <button
+                                className={styles.libBtn}
+                                onClick={() => onNavigate?.('library', selectedInstance.id)}
+                                title="Open Library"
+                            >
+                                <span>Library</span>
+                            </button>
+                        )}
                     </div>
                 </div>
                 {activeInstance ? (
@@ -456,24 +486,24 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
             )}
 
             {/* Widgets Grid */}
-            <div className={styles.widgetsGrid}>
+            <div className={`${styles.widgetsGrid} ${getAnimationClass('', 2)}`}>
                 {/* Stats Widget */}
                 <div className={styles.statsRow}>
-                    <div className={styles.statCard}>
+                    <div className={`${styles.statCard} ${animationsEnabled ? styles.statCardAnimated : ''}`}>
                         <div className={styles.statIcon}><Layers /></div>
                         <div className={styles.statInfo}>
                             <div className={styles.statValue}>{instances.length}</div>
                             <div className={styles.statLabel}>Total Profiles</div>
                         </div>
                     </div>
-                    <div className={styles.statCard}>
+                    <div className={`${styles.statCard} ${animationsEnabled ? styles.statCardAnimated : ''}`}>
                         <div className={styles.statIcon}><Star /></div>
                         <div className={styles.statInfo}>
                             <div className={styles.statValue}>{instances.filter(i => i.isFavorite).length}</div>
                             <div className={styles.statLabel}>Favorites</div>
                         </div>
                     </div>
-                    <div className={styles.statCard}>
+                    <div className={`${styles.statCard} ${animationsEnabled ? styles.statCardAnimated : ''}`}>
                         <div className={styles.statIcon}><Globe /></div>
                         <div className={styles.statInfo}>
                             <div className={styles.statValue}>{instances.filter(i => i.isImported).length}</div>
@@ -486,7 +516,7 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
 
             {/* Featured Servers Section */}
             {featuredServers.length > 0 && (
-                <div className={styles.featuredSection}>
+                <div className={`${styles.featuredSection} ${getAnimationClass('', 3)}`}>
                     <div className={styles.sectionTitle}>
                         <div className={styles.titleIcon}><Globe size={18} /></div>
                         Featured Servers
@@ -501,7 +531,11 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
                             }
 
                             return (
-                                <div key={server.id} className={styles.serverCard}>
+                                <div 
+                                    key={server.id} 
+                                    className={`${styles.serverCard} ${animationsEnabled ? styles.serverCardAnimated : ''}`}
+                                    style={animationsEnabled ? { animationDelay: `${index * 100}ms` } : undefined}
+                                >
                                     {index < 3 && (
                                         <div className={`${styles.rankBadge} ${index === 0 ? styles.rank1 : index === 1 ? styles.rank2 : styles.rank3}`}>
                                             {index + 1}
@@ -549,7 +583,7 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
             )}
 
             {/* Server Status Widget - New Hero Style */}
-            <div className={styles.serverWidgetHero}>
+            <div className={`${styles.serverWidgetHero} ${getAnimationClass('', 4)}`}>
                 <div className={styles.heroBg} style={{ backgroundImage: `url(${loginBg})` }}></div>
                 <div className={styles.serverWidgetContent}>
                     <div className={styles.widgetHeader}>
@@ -615,21 +649,22 @@ export const Home: React.FC<HomeProps> = ({ user, setUser }) => {
             </div>
 
             {/* Recent Profiles - Full Width */}
-            <div className={styles.recentProfilesSection}>
+            <div className={`${styles.recentProfilesSection} ${getAnimationClass('', 5)}`}>
                 <div className={styles.sectionTitle}>
                     <div className={styles.titleIcon}><Clock size={18} /></div>
                     Recent Profiles
                 </div>
                 <div className={styles.grid}>
-                    {recentInstances.map(inst => {
+                    {recentInstances.map((inst, index) => {
                         const loaderClass = styles[`miniLoader${inst.loader.charAt(0).toUpperCase() + inst.loader.slice(1).toLowerCase()}`] || styles.miniLoaderVanilla;
                         const isSelected = selectedInstance?.id === inst.id;
 
                         return (
                             <div
                                 key={inst.id}
-                                className={`${styles.miniCard} ${isSelected ? styles.selected : ''}`}
+                                className={`${styles.miniCard} ${isSelected ? styles.selected : ''} ${animationsEnabled ? styles.miniCardAnimated : ''}`}
                                 onClick={() => setSelectedInstance(inst)}
+                                style={animationsEnabled ? { animationDelay: `${index * 80}ms` } : undefined}
                             >
                                 <div className={styles.miniIcon} style={{
                                     background: inst.isFavorite

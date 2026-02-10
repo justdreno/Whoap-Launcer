@@ -98,6 +98,7 @@ function createMainWindow() {
         minHeight: 600,
         show: false, // Hide initially (wait for splash)
         frame: false, // Custom Titlebar
+        resizable: true, // Allow resizing
         transparent: true,
         backgroundColor: '#00000000', // Transparent bg for rounded corners
         icon: getIconPath(),
